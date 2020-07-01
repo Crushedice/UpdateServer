@@ -1,0 +1,4 @@
+//XML-Rusticaland AutoUpdater for RUST --client identifier file       update installation finished: 16.11.2019   18:55:07
+1133
+DB219.1
+True
