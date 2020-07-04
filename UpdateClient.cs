@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace UpdateServer
 {
@@ -13,7 +10,7 @@ namespace UpdateServer
         public string ClientFolder;
         public string Clientdeltazip;
         public string SignatureHash;
-        public Dictionary<string,string> filedata = new Dictionary<string, string>();
+        public Dictionary<string, string> filedata = new Dictionary<string, string>();
         public List<string> dataToSend = new List<string>();
         public List<string> dataToAdd = new List<string>();
         public List<string> filetoDelete = new List<string>();
@@ -22,7 +19,7 @@ namespace UpdateServer
         {
         }
 
-        public UpdateClient(string cIP,string Folder)
+        public UpdateClient(string cIP, string Folder)
         {
 
             ClientIP = cIP;

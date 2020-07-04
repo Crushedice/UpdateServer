@@ -29,23 +29,27 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.richTextBox1 = new System.Windows.Forms.RichTextBox();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.button1 = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.button6 = new System.Windows.Forms.Button();
             this.button5 = new System.Windows.Forms.Button();
-            this.numericUpDownExt1 = new Syncfusion.Windows.Forms.Tools.NumericUpDownExt();
-            this.digitalGauge1 = new Syncfusion.Windows.Forms.Gauge.DigitalGauge();
             this.button4 = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
             this.button2 = new System.Windows.Forms.Button();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
             this.listBox1 = new System.Windows.Forms.ListBox();
             this.CleanupTimer = new System.Windows.Forms.Timer(this.components);
-            this.button6 = new System.Windows.Forms.Button();
+            this.richTextBox2 = new System.Windows.Forms.RichTextBox();
+            this.ThreadTimer = new System.Windows.Forms.Timer(this.components);
+            this.button7 = new System.Windows.Forms.Button();
+            this.button8 = new System.Windows.Forms.Button();
+            this.button9 = new System.Windows.Forms.Button();
+            this.button10 = new System.Windows.Forms.Button();
             this.panel1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.numericUpDownExt1)).BeginInit();
             this.SuspendLayout();
             // 
             // richTextBox1
@@ -88,10 +92,12 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.button10);
+            this.panel1.Controls.Add(this.button9);
+            this.panel1.Controls.Add(this.button8);
+            this.panel1.Controls.Add(this.button7);
             this.panel1.Controls.Add(this.button6);
             this.panel1.Controls.Add(this.button5);
-            this.panel1.Controls.Add(this.numericUpDownExt1);
-            this.panel1.Controls.Add(this.digitalGauge1);
             this.panel1.Controls.Add(this.button1);
             this.panel1.Controls.Add(this.button4);
             this.panel1.Controls.Add(this.button3);
@@ -100,6 +106,16 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(268, 155);
             this.panel1.TabIndex = 4;
+            // 
+            // button6
+            // 
+            this.button6.Location = new System.Drawing.Point(3, 119);
+            this.button6.Name = "button6";
+            this.button6.Size = new System.Drawing.Size(100, 23);
+            this.button6.TabIndex = 8;
+            this.button6.Text = "Check Users";
+            this.button6.UseVisualStyleBackColor = true;
+            this.button6.Click += new System.EventHandler(this.button6_Click);
             // 
             // button5
             // 
@@ -110,47 +126,6 @@
             this.button5.Text = "Get threads";
             this.button5.UseVisualStyleBackColor = true;
             this.button5.Click += new System.EventHandler(this.button5_Click);
-            // 
-            // numericUpDownExt1
-            // 
-            this.numericUpDownExt1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(237)))), ((int)(((byte)(245)))), ((int)(((byte)(253)))));
-            this.numericUpDownExt1.BeforeTouchSize = new System.Drawing.Size(134, 20);
-            this.numericUpDownExt1.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(209)))), ((int)(((byte)(211)))), ((int)(((byte)(212)))));
-            this.numericUpDownExt1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.numericUpDownExt1.InterceptArrowKeys = false;
-            this.numericUpDownExt1.Location = new System.Drawing.Point(131, 96);
-            this.numericUpDownExt1.Maximum = new decimal(new int[] {
-            1000000,
-            0,
-            0,
-            0});
-            this.numericUpDownExt1.Name = "numericUpDownExt1";
-            this.numericUpDownExt1.ReadOnly = true;
-            this.numericUpDownExt1.Size = new System.Drawing.Size(134, 20);
-            this.numericUpDownExt1.TabIndex = 6;
-            this.numericUpDownExt1.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.numericUpDownExt1.ThemeName = "Metro";
-            this.numericUpDownExt1.ThousandsSeparator = true;
-            this.numericUpDownExt1.VisualStyle = Syncfusion.Windows.Forms.VisualStyle.Metro;
-            // 
-            // digitalGauge1
-            // 
-            this.digitalGauge1.BackgroundGradientEndColor = System.Drawing.Color.FromArgb(((int)(((byte)(35)))), ((int)(((byte)(32)))), ((int)(((byte)(33)))));
-            this.digitalGauge1.BackgroundGradientStartColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(48)))), ((int)(((byte)(49)))));
-            this.digitalGauge1.CharacterCount = 3;
-            this.digitalGauge1.DisplayRecordIndex = 0;
-            this.digitalGauge1.ForeColor = System.Drawing.Color.White;
-            this.digitalGauge1.FrameBorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(7)))), ((int)(((byte)(7)))), ((int)(((byte)(7)))));
-            this.digitalGauge1.Location = new System.Drawing.Point(131, 0);
-            this.digitalGauge1.MaximumSize = new System.Drawing.Size(500, 180);
-            this.digitalGauge1.MinimumSize = new System.Drawing.Size(90, 90);
-            this.digitalGauge1.Name = "digitalGauge1";
-            this.digitalGauge1.OuterFrameGradientEndColor = System.Drawing.Color.FromArgb(((int)(((byte)(38)))), ((int)(((byte)(35)))), ((int)(((byte)(36)))));
-            this.digitalGauge1.OuterFrameGradientStartColor = System.Drawing.Color.FromArgb(((int)(((byte)(51)))), ((int)(((byte)(49)))), ((int)(((byte)(50)))));
-            this.digitalGauge1.ShowInvisibleSegments = true;
-            this.digitalGauge1.Size = new System.Drawing.Size(137, 90);
-            this.digitalGauge1.TabIndex = 5;
-            this.digitalGauge1.VisualStyle = Syncfusion.Windows.Forms.Gauge.ThemeStyle.Black;
             // 
             // button4
             // 
@@ -177,8 +152,9 @@
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(100, 23);
             this.button2.TabIndex = 0;
-            this.button2.Text = "...";
+            this.button2.Text = "Run Standalone";
             this.button2.UseVisualStyleBackColor = true;
+            this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
             // checkBox1
             // 
@@ -209,34 +185,81 @@
             this.CleanupTimer.Interval = 900000;
             this.CleanupTimer.Tick += new System.EventHandler(this.CleanupTimer_Tick);
             // 
-            // button6
+            // richTextBox2
             // 
-            this.button6.Location = new System.Drawing.Point(3, 119);
-            this.button6.Name = "button6";
-            this.button6.Size = new System.Drawing.Size(100, 23);
-            this.button6.TabIndex = 8;
-            this.button6.Text = "Check Users";
-            this.button6.UseVisualStyleBackColor = true;
-            this.button6.Click += new System.EventHandler(this.button6_Click);
+            this.richTextBox2.BackColor = System.Drawing.SystemColors.WindowText;
+            this.richTextBox2.ForeColor = System.Drawing.SystemColors.Window;
+            this.richTextBox2.Location = new System.Drawing.Point(648, 7);
+            this.richTextBox2.Name = "richTextBox2";
+            this.richTextBox2.Size = new System.Drawing.Size(142, 160);
+            this.richTextBox2.TabIndex = 7;
+            this.richTextBox2.Text = "";
+            // 
+            // ThreadTimer
+            // 
+            this.ThreadTimer.Interval = 5000;
+            this.ThreadTimer.Tick += new System.EventHandler(this.ThreadTimer_Tick);
+            // 
+            // button7
+            // 
+            this.button7.Location = new System.Drawing.Point(165, 93);
+            this.button7.Name = "button7";
+            this.button7.Size = new System.Drawing.Size(100, 23);
+            this.button7.TabIndex = 9;
+            this.button7.Text = "Break all Tasks";
+            this.button7.UseVisualStyleBackColor = true;
+            this.button7.Click += new System.EventHandler(this.button7_Click);
+            // 
+            // button8
+            // 
+            this.button8.Location = new System.Drawing.Point(165, 61);
+            this.button8.Name = "button8";
+            this.button8.Size = new System.Drawing.Size(100, 23);
+            this.button8.TabIndex = 10;
+            this.button8.Text = "Break";
+            this.button8.UseVisualStyleBackColor = true;
+            this.button8.Click += new System.EventHandler(this.button8_Click);
+            // 
+            // button9
+            // 
+            this.button9.Location = new System.Drawing.Point(165, 30);
+            this.button9.Name = "button9";
+            this.button9.Size = new System.Drawing.Size(100, 23);
+            this.button9.TabIndex = 11;
+            this.button9.Text = "status";
+            this.button9.UseVisualStyleBackColor = true;
+            this.button9.Click += new System.EventHandler(this.button9_Click);
+            // 
+            // button10
+            // 
+            this.button10.Location = new System.Drawing.Point(165, 3);
+            this.button10.Name = "button10";
+            this.button10.Size = new System.Drawing.Size(100, 23);
+            this.button10.TabIndex = 12;
+            this.button10.Text = "set start";
+            this.button10.UseVisualStyleBackColor = true;
+            this.button10.Click += new System.EventHandler(this.button10_Click);
             // 
             // Form1
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
+            this.AutoValidate = System.Windows.Forms.AutoValidate.Disable;
             this.BackColor = System.Drawing.Color.DarkSlateGray;
             this.ClientSize = new System.Drawing.Size(810, 474);
+            this.Controls.Add(this.richTextBox2);
             this.Controls.Add(this.listBox1);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.textBox1);
             this.Controls.Add(this.richTextBox1);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
+            this.DoubleBuffered = true;
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.panel1.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.numericUpDownExt1)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -252,13 +275,17 @@
         private System.Windows.Forms.Button button4;
         private System.Windows.Forms.Button button3;
         private System.Windows.Forms.Button button2;
-        private Syncfusion.Windows.Forms.Gauge.DigitalGauge digitalGauge1;
-        private Syncfusion.Windows.Forms.Tools.NumericUpDownExt numericUpDownExt1;
         private System.Windows.Forms.Button button5;
         private System.Windows.Forms.CheckBox checkBox1;
         private System.Windows.Forms.ListBox listBox1;
         private System.Windows.Forms.Timer CleanupTimer;
         private System.Windows.Forms.Button button6;
+        private System.Windows.Forms.RichTextBox richTextBox2;
+        private System.Windows.Forms.Timer ThreadTimer;
+        private System.Windows.Forms.Button button7;
+        private System.Windows.Forms.Button button8;
+        private System.Windows.Forms.Button button9;
+        private System.Windows.Forms.Button button10;
     }
 }
 

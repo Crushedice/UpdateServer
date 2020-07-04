@@ -1,13 +1,11 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 namespace UpdateServer
 {
@@ -27,7 +25,7 @@ namespace UpdateServer
             if (Directory.Exists("Rust"))
             {
                 RustFolder = new DirectoryInfo("Rust");
-               
+
                 Run();
 
 
@@ -35,13 +33,13 @@ namespace UpdateServer
             else
             {
                 Form1.AddNewEntry("Rust Folder not Found");
-                
+
                 return;
 
 
             }
 
-            Form1.AddNewEntry("");
+            Form1.AddNewEntry(string.Empty);
 
 
 
@@ -60,51 +58,51 @@ namespace UpdateServer
             files = allfiles.Count();
 
 
-           
-                foreach (var x in allfiles)
+
+            foreach (var x in allfiles)
+            {
+
+
+                string hash;
+                string path;
+
+                var wpath = x.Replace(RustFolder.ToString() + "\\", string.Empty);
+                path = wpath.Replace("\\", "/");
+                hash = CalculateMD5(x);
+
+
+
+                if (!FileHashes.ContainsKey(path))
                 {
+                    FileHashes.Add(path, hash);
+                }
+                else
+                {
+                    errs++;
 
-
-                    string hash;
-                    string path;
-
-                    var wpath = x.Replace(RustFolder.ToString()+"\\", "");
-                    path = wpath.Replace("\\", "/");
-                    hash = CalculateMD5(x);
-
-
-
-                    if (!FileHashes.ContainsKey(path))
+                    errors.Add(x);
+                    try
                     {
-                        FileHashes.Add(path, hash);
+                        Errs.Add(path, hash);
                     }
-                    else
+                    catch
                     {
-                        errs++;
 
-                        errors.Add(x);
-                        try
-                        {
-                            Errs.Add(path, hash);
-                        }
-                        catch
-                        {
-
-                        }
                     }
-
-
-                    Form1.AddNewEntry("Progress " + i + "  File:  " + hash + "|" + path);
-                    i++;
-
                 }
 
-            
+
+                Form1.AddNewEntry("Progress " + i + "  File:  " + hash + "|" + path);
+                i++;
+
+            }
+
+
             File.WriteAllText("Hashes.json", JsonConvert.SerializeObject(FileHashes, Formatting.Indented));
             File.WriteAllText("Errors.json", JsonConvert.SerializeObject(Errs, Formatting.Indented));
             timr.Stop();
             Form1.AddNewEntry("Errors: " + errs.ToString() + "\n" + "Skipped : " + skip + "\n" + "Seconds : " + (timr.ElapsedMilliseconds) / 1000);
-           
+
 
 
         }
@@ -120,7 +118,7 @@ namespace UpdateServer
                 hash = md5.ComputeHash(inputStream);
 
             }
-            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
         }
     }
 }

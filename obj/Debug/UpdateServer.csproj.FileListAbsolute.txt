@@ -1,0 +1,13 @@
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\UpdateServer.exe.config
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\UpdateServer.exe
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\UpdateServer.pdb
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\Newtonsoft.Json.xml
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csprojAssemblyReference.cache
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.Form1.resources
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.Properties.Resources.resources
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csproj.GenerateResource.cache
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csproj.CoreCompileInputs.cache
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csproj.Fody.CopyLocal.cache
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csproj.CopyComplete
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.exe
+S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.pdb
