@@ -21,7 +21,7 @@ using WatsonTcp;
 
 public class UpdateServerEntity
 {
-    private static string serverIp = "145.239.130.132";
+    private static string serverIp = "0.0.0.0";
     private static int serverPort = 9000;
     private static bool useSsl = false;
    // public static List<Task> tasks = new List<Task>();
@@ -29,7 +29,9 @@ public class UpdateServerEntity
     private static string certFile = string.Empty;
     private static string certPass = string.Empty;
     private static string Rustfolderroot = "Rust";
+    private static readonly long MaxFolderSize = 53687091200;
     private static string DeltaStorage = "DeltaStorage";
+    private static List<string> StoredDeltas = new List<string>();
     private static bool acceptInvalidCerts = true;
     private static bool mutualAuthentication = true;
     public static bool consolle = true;
@@ -48,20 +50,13 @@ public class UpdateServerEntity
     public static pooldelegate poolp;
     public UpdateServerEntity()
     {
-        serverIp = InputString("Server IP:", serverIp, false);
-        serverPort = InputInteger("Server port:", serverPort, true, false);
-        useSsl = InputBoolean("Use SSL:", false);
-        AddNewEntry("Server Start...");
+     
+        Console.WriteLine("Server Start...");
         mkdelta = CreateDeltaforClient;
-        consoleWriter.WriteEvent += consoleWriter_WriteEvent;
-        consoleWriter.WriteLineEvent += consoleWriter_WriteLineEvent;
-
-        Console.SetOut(consoleWriter);
+        CheckDeltas();
         instance = this;
-        FileHashes = Form1.FileHashes;
+        FileHashes = Heart.FileHashes;
         poolp = PoolProgress;
-        // _serverThread.Start();
-        Form1.UpdaterGrid.DataSource = null;
         Start();
     }
 
@@ -81,8 +76,8 @@ public class UpdateServerEntity
             server = new WatsonTcpServer(serverIp, serverPort, certFile, certPass);
             server.AcceptInvalidCertificates = acceptInvalidCerts;
             server.MutuallyAuthenticate = mutualAuthentication;
-            server.Logger = s => AddNewEntry(s);
-            server.DebugMessages = true;
+            server.Logger = s => Console.WriteLine(s);
+            server.DebugMessages = false;
 
         }
 
@@ -91,6 +86,8 @@ public class UpdateServerEntity
         server.ClientDisconnected += ClientDisconnected;
         server.StreamReceived += StreamReceived;
         server.SyncRequestReceived = SyncRequestReceived;
+        server.IdleClientTimeoutSeconds = 600;
+        
 
 
         // using lambda expression..could use method like other answers on here
@@ -101,40 +98,24 @@ public class UpdateServerEntity
 
         server.StartAsync();
 
-        AddNewEntry("Command [? for help]: ");
+        Console.WriteLine("Command [? for help]: ");
 
-        AddNewEntry("Available commands:");
-        AddNewEntry("  ?          help (this menu)");
-        AddNewEntry("  q          quit");
-        AddNewEntry("  cls        clear screen");
-        AddNewEntry("  list       list clients");
-        AddNewEntry("  send       send message to a client");
-        AddNewEntry("  sendasync  send message to a client asynchronously");
-        AddNewEntry("  remove     disconnect client");
-        AddNewEntry("  psk        set preshared key");
+        Console.WriteLine("Available commands:");
+        Console.WriteLine("  ?          help (this menu)");
+        Console.WriteLine("  q          quit");
+        Console.WriteLine("  cls        clear screen");
+        Console.WriteLine("  list       list clients");
+        Console.WriteLine("  send       send message to a client");
+        Console.WriteLine("  sendasync  send message to a client asynchronously");
+        Console.WriteLine("  remove     disconnect client");
+        Console.WriteLine("  psk        set preshared key");
 
     }
     #region MainMethods
-    static void consoleWriter_WriteLineEvent(object sender, ConsoleWriterEventArgs e)
-    {
-       // AddNewEntry(e.Value);
-    }
-
-    static void consoleWriter_WriteEvent(object sender, ConsoleWriterEventArgs e)
-    {
-      //  AddNewEntry(e.Value);
-    }
-    public void changeConsole(bool state)
-    {
-
-        consolle = state;
-
-    }
+   
 
     private static async void ClientConnected(object sender, ClientConnectedEventArgs args)
     {
-        AddNewEntry("Client connected: " + args.IpPort);
-        AddNewEntry("Sending Current DB Info to Client...");
 
         string msg = string.Empty;
         var fixedip = args.IpPort.Replace(':', '-');
@@ -149,15 +130,27 @@ public class UpdateServerEntity
         CurrentClients[args.IpPort].Clientdeltazip = clientfolder + "\\Deltas" + args.IpPort.Replace(':', '-') + ".zip";
         currCount++;
 
-        //     SendMessage("V|" + Form1.Vversion + "|", args.IpPort, true);
-        SendMessage(Form1.Vversion, args.IpPort, true);
+        //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
+        SendMessage(Heart.Vversion, args.IpPort, true);
 
-
+        CheckforCleanup();
     }
+
+    private static void CheckforCleanup()
+    {
+
+        var cursize = DirSize(new DirectoryInfo(DeltaStorage));
+
+        if(cursize>MaxFolderSize)
+        {
+            DeleteOldFiles();
+		}
+
+	}
 
     private static void ClientDisconnected(object sender, ClientDisconnectedEventArgs args)
     {
-        AddNewEntry("Client disconnected: " + args.IpPort + ": " + args.Reason.ToString());
+       // Console.WriteLine("Client disconnected: " + args.IpPort + ": " + args.Reason.ToString());
         CurrentClients.Remove(args.IpPort);
         currCount = currCount - 1;
 
@@ -165,14 +158,7 @@ public class UpdateServerEntity
 
     public static async Task SendMessage(string userInput, string ipPort, bool SendHashes)
     {
-        try
-        {
-            AddNewEntry("\n \n ---New SendMessage--- \n" + userInput + "\n\n");
-        }
-        catch
-        {
-
-        }
+      
 
         byte[] data = null;
         MemoryStream ms = null;
@@ -180,14 +166,14 @@ public class UpdateServerEntity
         if (SendHashes)
         {
             Dictionary<object, object> metad = new Dictionary<object, object>();
-            metad.Add(Form1.Vversion, string.Empty);
+            metad.Add(Heart.Vversion, string.Empty);
 
-            AddNewEntry("Sending Hashes.. \n");
+           // Console.WriteLine("Sending Hashes.. \n");
             var hashstring = JsonConvert.SerializeObject(FileHashes);//InputDictionaryT();
             if (String.IsNullOrEmpty(userInput)) return;
             data = Encoding.UTF8.GetBytes(userInput);
             ms = new MemoryStream(data);
-            AddNewEntry("SendingMeta Datalength:  " + ms.Length + "/ " + data.Length + "\n  MetaLength: ");
+            //Console.WriteLine("SendingMeta Datalength:  " + ms.Length + "/ " + data.Length + "\n  MetaLength: ");
             // var success = await server.SendAsync(ipPort,metadata, data.Length, ms);
             var success = server.SendAsync(ipPort, metad, hashstring);
             //bool success = server.Send(ipPort, Encoding.UTF8.GetBytes(message));
@@ -195,18 +181,18 @@ public class UpdateServerEntity
         }
         else
         {
-            // AddNewEntry("IP:Port: "+ipPort);
-            AddNewEntry("Sending Only Message... \n");
-            //  AddNewEntry("Data: "+userInput);
+            // Console.WriteLine("IP:Port: "+ipPort);
+           // Console.WriteLine("Sending Only Message... \n");
+            //  Console.WriteLine("Data: "+userInput);
 
 
             data = Encoding.UTF8.GetBytes(userInput);
             ms = new MemoryStream(data);
 
-            AddNewEntry("SendingMsgDatalength:  " + ms.Length + "/ " + data.Length + "\n");
+           // Console.WriteLine("SendingMsgDatalength:  " + ms.Length + "/ " + data.Length + "\n");
             // await server.SendAsync(ipPort, ms);
 
-            AddNewEntry("Sending message:" + data);
+          //  Console.WriteLine("Sending message:" + data);
             var success = server.SendAsync(ipPort, userInput);
             if (userInput == "STORE|true")
             {
@@ -221,28 +207,23 @@ public class UpdateServerEntity
     public static async Task SendNetData(string ip, string zip, bool stored = false)
     {
         var client = CurrentClients[ip];
-
-
         Dictionary<object, object> metadata = new Dictionary<object, object>();
-
         // try
         //{
         //  metadata.Add(zip, zip);
         metadata.Add("1", "2");
 
-        if (stored)
-        {
-            while (!IsFileReady(zip))
-            {
-                Task.Delay(1500);
-                AddNewEntry("Waiting for file Ready");
-            }
-
-            Task.Delay(5000);
-
-        }
-
-
+        //if (stored)
+        //{
+        //    while (!IsFileReady(zip))
+        //    {
+        //        Task.Delay(1500);
+        //       // Console.WriteLine("Waiting for file Ready");
+        //    }
+        //
+        //    Task.Delay(5000);
+        //
+        //}
 
         using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read))
         {
@@ -252,33 +233,28 @@ public class UpdateServerEntity
 
         if (stored)
         {
-            FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm")+"  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length), "Finished.txt");
+            FileLogger.CLog("  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
 
         }
         else
         {
-            FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm") + "  UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length), "Finished.txt");
+            FileLogger.CLog( "  UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
         }
 
-        //  }
-        //  catch (Exception e )
-        //  {
-        //
-        //      AddNewEntry(e.Message);
-        //  }
-        AddNewEntry("Alldone for client :" + ip);
-        AddNewEntry("UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length));
-        AddNewEntry("Cleaning up....");
+      
+       // Console.WriteLine("Alldone for client :" + ip);
+       // Console.WriteLine("UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length));
+       // Console.WriteLine("Cleaning up....");
 
 
         if (client.SignatureHash != string.Empty)
         {
-            AddNewEntry("sighash not empty");
+          //  Console.WriteLine("sighash not empty");
             var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
             if (!allfiles.Any(x => x.Name == client.SignatureHash + ".zip"))
             {
                 File.Move(zip, DeltaStorage + "\\" + client.SignatureHash + ".zip");
-                AddNewEntry("File moved");
+               // Console.WriteLine("File moved");
             }
         }
 
@@ -303,71 +279,38 @@ public class UpdateServerEntity
     public async void CreateDeltaforClient(UpdateClient client)
     {
 
-     //   DeltaForClientDiff(client);
-       
-    //    CreateDeltaforClientSequential(client);
-
-
-        //  return;
-
-        //List<CancellationTokenSource> tokenlist = new List<CancellationTokenSource>();
-        //  Task.Delay(500);
-        // Thread.Sleep(500);
-        //var client = CurrentClients[Ip];
-        AddNewEntry("creating delta for client....");
-        List<CancellationTokenSource> tokenlist = new List<CancellationTokenSource>();
-        List<Task> tasks = new List<Task>();
-
-        //if (File.Exists(Path.GetFullPath(client.Clientdeltazip)))
-        //    goto skip;
-
-
-
-        var allDeltas = Directory.GetFiles(client.ClientFolder.ToString(), "*", SearchOption.AllDirectories);
-       // List<Task> tasks = new List<Task>();
-       // ThreadPool.SetMaxThreads(32767, 32767);
-        foreach (var x in allDeltas)
+        //Console.WriteLine("creating delta for client....");
+        try
         {
-            var tokenSource = new CancellationTokenSource();
-            var token = tokenSource.Token;
-            if (!x.Contains(".zip"))
+            List<CancellationTokenSource> tokenlist = new List<CancellationTokenSource>();
+            List<Task> tasks = new List<Task>();
+
+            var allDeltas = Directory.GetFiles(client.ClientFolder.ToString(), "*", SearchOption.AllDirectories);
+            foreach (var x in allDeltas)
             {
-
-                //  Form1.PoolMod(x,true);
-                deltaprogress++;
-
-                //Task t = Task.Run( () => DeltaPool(x, client), token);
-                Task t=  Task.Run(() => DeltaPool(x, client), token);
-
-                tasks.Add(t);
-                tokenlist.Add(tokenSource);
+                var tokenSource = new CancellationTokenSource();
+                var token = tokenSource.Token;
+                if (!x.Contains(".zip"))
+                {
+                    deltaprogress++;
+                    Task t = Task.Run(() => DeltaPool(x, client), token);
+                    tasks.Add(t);
+                    tokenlist.Add(tokenSource);
+                }
             }
+            await Waitforall(tasks).ConfigureAwait(false);
+            //Console.WriteLine("all threads Exited.  Sending data");
+            
         }
-        //TaskPool.Add(client.ClientIP,tasks);
-        // Form1.ProcessUpdaterList(client.ClientIP,3,"Creating Delta for "+tasks.Count +" files");
+        catch (Exception e)
+        {
+            FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
+            server.DisconnectClient(client.ClientIP);
+           
+        }
+CreateZipFile(client);
 
-        await Waitforall(tasks).ConfigureAwait(false);
-
-        // await Task.WhenAny(Task.WhenAll(tasks), Task.Delay(500000));
-       // while (tasks.Count > 0)
-       // {
-       //     // Identify the first task that completes.
-       //     Task firstFinishedTask = await Task.WhenAny(tasks);
-       //
-       //     // ***Remove the selected task from the list so that you don't
-       //     // process it more than once.
-       //     tasks.Remove(firstFinishedTask);
-       //     AddNewEntry("Task done," + tasks.Count +" Left todo");
-       //     // Await the completed task.
-       //    
-       // }
-      //  await Task.WhenAll(tasks);
-
-        AddNewEntry("all threads Exited.  Sending data");
-        CreateZipFile(client);
-        
-        return;
-
+            return;
     skip:
         SendNetData(client.ClientIP, client.Clientdeltazip);
 
@@ -378,7 +321,7 @@ public class UpdateServerEntity
     private async void DeltaForClientDiff(UpdateClient client)
     {
 
-        AddNewEntry("creating delta for client....");
+        Console.WriteLine("creating delta for client....");
         try
         {
             //if (File.Exists(Path.GetFullPath(client.Clientdeltazip)))
@@ -390,7 +333,7 @@ public class UpdateServerEntity
             var allDeltas = Directory.GetFiles(client.ClientFolder.ToString(), "*", SearchOption.AllDirectories);
               List<Task> tasks = new List<Task>();
             var allcount = allDeltas.Count();
-            //   Form1.ModifyUpdateDic(client.ClientIP, CurCount + "/" + allcount.ToString());
+            //   Heart.ModifyUpdateDic(client.ClientIP, CurCount + "/" + allcount.ToString());
 
             foreach (var x in allDeltas)
             {
@@ -400,7 +343,7 @@ public class UpdateServerEntity
                     if (!x.Contains(".zip"))
                     {
 
-                        //  Form1.PoolMod(x,true);
+                        //  Heart.PoolMod(x,true);
                         deltaprogress++;
 
                         await Task.Run( () => DeltaPool(x, client)).ConfigureAwait(false);
@@ -409,9 +352,9 @@ public class UpdateServerEntity
                       
                      
                     }
-                    AddNewEntry("Processing "+ deltaprogress.ToString() + x.Split('/').Last());
+                   // Console.WriteLine("Processing "+ deltaprogress.ToString() + x.Split('/').Last());
                     CurCount++;
-                //  Form1.ModifyUpdateDic(client.ClientIP, CurCount + "/" + allcount.ToString());
+                //  Heart.ModifyUpdateDic(client.ClientIP, CurCount + "/" + allcount.ToString());
             }
 
 
@@ -424,16 +367,16 @@ public class UpdateServerEntity
             MessageBox.Show(e.Message);
         }
 
-        AddNewEntry("all threads Exited.  Sending data");
+       // Console.WriteLine("all threads Exited.  Sending data");
         CreateZipFile(client);
-        // Form1.ModifyUpdateDic(client.ClientIP, "", true);
+        // Heart.ModifyUpdateDic(client.ClientIP, "", true);
     }
 
     public void PoolProgress()
     {
         int i = 0;
-        if ((i % 3) == 0)
-            AddNewEntry(i + "Threads reported as done");
+        if ((i % 3) == 0);
+            //Console.WriteLine(i + "Threads reported as done");
 
     }
 
@@ -444,7 +387,7 @@ public class UpdateServerEntity
     {
 
         //int timeout = 120000;
-        AddNewEntry("Taskamount: " + tasklist.Count());
+        //Console.WriteLine("Taskamount: " + tasklist.Count());
         await Task.WhenAll(tasklist.ToArray()).ConfigureAwait(false);
 
 
@@ -458,7 +401,7 @@ public class UpdateServerEntity
     public Task DeltaPool(string x, UpdateClient client)
     {
       
-        AddNewEntry("Processing " + x );
+        //Console.WriteLine("Processing " + x );
             client.filetoDelete.Add(x);
             var filename = Path.GetFileName(x);
             var relativePath = x.Replace(client.ClientFolder, string.Empty);
@@ -486,16 +429,31 @@ public class UpdateServerEntity
        
 
         // poolp();
-        // Form1.PoolMod(x, false);
+        // Heart.PoolMod(x, false);
         return Task.CompletedTask;
        
     }
 
+    public static void CheckDeltas()
+    {
+        var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
+        foreach(var x in allfiles)
+        {
+           var delhash = x.Name.Replace(".zip","");
+           if(!StoredDeltas.Contains(delhash))
+           {
+            StoredDeltas.Add(delhash);
+		   }
+           
+        }
+
+    }
+
+
     static async Task<bool> fileexisting(UpdateClient client, string msg)
     {
         client.SignatureHash = msg;
-        var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
-        if (allfiles.Any(x => x.Name == msg + ".zip"))
+        if (StoredDeltas.Contains(client.SignatureHash))
         {
             var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
             Task.Run(() => (SendNetData(client.ClientIP, filen, true)));
@@ -505,7 +463,7 @@ public class UpdateServerEntity
         return false;
     }
 
-    private static SyncResponse SyncRequestReceived(SyncRequest req)
+    private static  SyncResponse SyncRequestReceived(SyncRequest req)
     {
 
         try
@@ -517,7 +475,7 @@ public class UpdateServerEntity
             {
                 Messagee = req.Metadata.First().Key.ToString();
 
-                bool ex = fileexisting(client, Messagee).Result;
+                var ex = fileexisting(client, Messagee).Result;
 
                 if (ex)
                 {
@@ -549,65 +507,17 @@ public class UpdateServerEntity
             dict.Add("false", "bar");
             return new SyncResponse(req, dict, "null");
         }
-        catch
+        catch(Exception e)
         {
+            FileLogger.CLog( "Error in SyncResponse : " + e.Message, "Errors.txt");
             var dict = new Dictionary<object, object>();
             dict.Add("false", "bar");
-            AddNewEntry("Error with SyncResponse");
+            //Console.WriteLine("Error with SyncResponse");
             return new SyncResponse(req, dict, "null");
         }
     }
     private static void StreamReceived(object sender, StreamReceivedFromClientEventArgs args)
     {
-
-        //if (args.Metadata.Count <1)
-        //{
-        //    string Msg = "";
-        //    var client = CurrentClients[args.IpPort];
-        //    var bytesRead = 0;
-        //    var bufferSize = 65536;
-        //    var buffer = new byte[bufferSize];
-        //    var bytesRemaining = args.ContentLength;
-        //   
-        //
-        //    while (bytesRemaining > 0)
-        //    {
-        //        bytesRead = args.DataStream.Read(buffer, 0, buffer.Length);
-        //
-        //        if (bytesRead > 0)
-        //        {
-        //            var consoleBuffer = new byte[bytesRead];
-        //            Buffer.BlockCopy(buffer, 0, consoleBuffer, 0, bytesRead);
-        //            Msg += Encoding.UTF8.GetString(consoleBuffer);
-        //        }
-        //
-        //        bytesRemaining -= bytesRead;
-        //        // AddNewEntry("bytesread 0 , looping around.");
-        //    }
-        //
-        //    client.SignatureHash = Msg;
-        //    var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
-        //    if (allfiles.Any(x => x.Name == client.SignatureHash + ".zip"))
-        //    {
-        //        var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
-        //      //  Task.Run(() => (SendNetData(client.ClientIP, filen, true)));
-        //        Task.Run(() => (SendMessage("STORE|true", client.ClientIP, false)));
-        //
-        //        return;
-        //    }
-        //    else
-        //    {
-        //        Task.Run(() => (SendMessage("STORE|false", client.ClientIP, false)));
-        //      //  SendMessage("STORE|false", client.ClientIP, false);
-        //        return;
-        //    }
-        //
-        //}
-        //else
-        //{
-
-
-
 
         try
         {
@@ -618,10 +528,10 @@ public class UpdateServerEntity
             
 
             var zippath = userFolder + @"\\" + "signatures" + fixedname + ".zip";
-            AddNewEntry("New Stream");
+           // Console.WriteLine("New Stream");
 
 
-            AddNewEntry("Start Processing");
+          //  Console.WriteLine("Start Processing");
             var bytesRead = 0;
             var bufferSize = 65536;
             var buffer = new byte[bufferSize];
@@ -640,11 +550,10 @@ public class UpdateServerEntity
                 }
 
                 bytesRemaining -= bytesRead;
-                // AddNewEntry("bytesread 0 , looping around.");
+                // Console.WriteLine("bytesread 0 , looping around.");
             }
 
-
-            AddNewEntry("Processing Meta if avalible");
+            //Console.WriteLine("Processing Meta if avalible");
             if (args.Metadata != null && args.Metadata.Count > 0)
             {
                 // Console.WriteLine("Metadata:");
@@ -654,58 +563,19 @@ public class UpdateServerEntity
                     user.dataToAdd.Add("Rust\\" + curr.Key.ToString());
                 }
 
-                AddNewEntry("Missing files from client: " + user.dataToAdd.Count);
+            
             }
 
-            AddNewEntry("Finishing File,  Flush and Run Extract Task");
             file.Flush();
             file.Close();
             Task.Run(() => Extract(zippath, user));
-            // Task.Run(() => AddMissingFiles(zippath, user, xtradata));
-            // Stream st = resp.GetResponseStream();
-            // FileStream f = new FileStream(@"f:\pic\samp\rt.jpg", FileMode.Create);
-            // byte[] b = new byte[10000];
-            //
-            // st.Read(b, 0, b.Length);
-            //
-            // st.Close();
-            // f.Write(b, 0, b.Length);
-            // f.Flush();
-            // f.Close();
-            // DirectoryInfo di = Directory.CreateDirectory(userFolder + "//" + additional);
-            // int bytesRead = 0;
-            // int bufferSize = 131072;
-            // byte[] buffer = new byte[bufferSize];
-            // long bytesRemaining = contentLength;
-            // if (stream != null && stream.CanRead)
-            // {
-            //     while (bytesRemaining > 0)
-            //     {
-            //         bytesRead = stream.Read(buffer, 0, buffer.Length);
-            //
-            //         if (bytesRead > 0)
-            //         {
-            //             byte[] consoleBuffer = new byte[bytesRead];
-            //             Buffer.BlockCopy(buffer, 0, consoleBuffer, 0, bytesRead);
-            //             file = File.OpenWrite(zippath);
-            //
-            //         }
-            //         bytesRemaining -= bytesRead;
-            //     }
-            // }
-            // else
-            // {
-            //     AddNewEntry("[null]");
-            // }
-            //
-            // AddNewEntry("Done!");
-            AddNewEntry("Finished!");
+          
 
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            AddNewEntry("Exception thrown");
-            throw;
+            // Console.WriteLine("Exception thrown");
+            FileLogger.CLog("Error in StreamReceived : " + e.Message, "Errors.txt");
         }
 
     }
@@ -723,7 +593,7 @@ public class UpdateServerEntity
         // catch
         // {
         //
-        //     AddNewEntry("Error with received List");
+        //     Console.WriteLine("Error with received List");
         // }
 
     }
@@ -769,9 +639,9 @@ public class UpdateServerEntity
             if (IsFileReady(path))
                 File.Delete(path);
         }
-        catch
+        catch(Exception e)
         {
-
+            FileLogger.CLog("Error in Extract : " + e.Message, "Errors.txt");
             SendMessage("ERR|Error In Extracting Zip Serverside", currentUser.ClientIP, false);
             Task.Delay(1000);
             server.DisconnectClient(currentUser.ClientIP);
@@ -798,7 +668,7 @@ public class UpdateServerEntity
 
             var userIpp = x.Replace("-", ":");
             var thisone = userIpp.Replace(@"ClientFolders\", string.Empty);
-            AddNewEntry("Checking User " + thisone);
+           // Console.WriteLine("Checking User " + thisone);
             if (!server.IsClientConnected(thisone))
             {
 
@@ -899,49 +769,68 @@ public class UpdateServerEntity
 
 
     public async Task CreateZipFile(UpdateClient client)
-    {
+    { int retrycount = 0;
         // Create and open a new ZIP file
-
-        string zipFileName = client.Clientdeltazip;
-        var zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create);
-        AddNewEntry("ToSend FileCount: " + client.dataToSend.Count);
-        foreach (var x in client.dataToSend)
+        starrt:
+       
+            string zipFileName = client.Clientdeltazip;
+        try
         {
-            var relativePath = x.Replace(client.ClientFolder + "\\Rust\\", string.Empty);
-            var fixedname = relativePath.Replace('\\', '/');
+          
+            var zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create);
+            foreach (var x in client.dataToSend)
+            {
+                var relativePath = x.Replace(client.ClientFolder + "\\Rust\\", string.Empty);
+                var fixedname = relativePath.Replace('\\', '/');
+                zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
+            }
+            foreach (var y in client.dataToAdd)
+            {
+                var relativePath = y.Replace("Rust\\", string.Empty);
+                var fixedname = relativePath.Replace('\\', '/');
+                zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
+            }
 
-            // var leadingPath = fixedname.TrimStart(RustFolder.FullName.ToCharArray());
-
-            // Add the entry for each file
-            zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
+            zip.Dispose();
+            client.filetoDelete.Add(zipFileName);
         }
-        AddNewEntry("ToAdd FileCount: " + client.dataToAdd.Count);
-        foreach (var y in client.dataToAdd)
+        catch (Exception e)
         {
-            var relativePath = y.Replace("Rust\\", string.Empty);
-            var fixedname = relativePath.Replace('\\', '/');
-            zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
+            FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
+            goto retrying;
+
         }
-        // Dispose of the object when we are done
-        zip.Dispose();
-        client.filetoDelete.Add(zipFileName);
 
         if (server.IsClientConnected(client.ClientIP))
             SendNetData(client.ClientIP, zipFileName);
         else
         {
-            AddNewEntry("Abort. Client not connected anymore");
             if (client.SignatureHash != string.Empty)
             {
-                AddNewEntry("sighash not empty");
-                var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
-                if (!allfiles.Any(x => x.Name == client.SignatureHash + ".zip"))
+                if (!StoredDeltas.Contains(client.SignatureHash))
                 {
+                    StoredDeltas.Add(client.SignatureHash);
+                
                     File.Move(zipFileName, DeltaStorage + "\\" + client.SignatureHash + ".zip");
-                    AddNewEntry("File moved");
                 }
             }
         }
+
+        return;
+
+        retrying:
+
+        if (retrycount > 5)
+        {
+        //    FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm") + "  abort of packing zip after  " + retrycount + " Retry ", "Finished.txt");
+            server.DisconnectClient(client.ClientIP);
+            return;
+        }
+        await Task.Delay(15000);
+        retrycount++;
+        goto starrt;
+
+
 
     }
 
@@ -988,7 +877,7 @@ public class UpdateServerEntity
             int ret = 0;
             if (!Int32.TryParse(userInput, out ret))
             {
-                AddNewEntry("Please enter a valid integer.");
+                Console.WriteLine("Please enter a valid integer.");
                 continue;
             }
 
@@ -1004,7 +893,7 @@ public class UpdateServerEntity
             {
                 if (positiveOnly)
                 {
-                    AddNewEntry("Please enter a value greater than zero.");
+                    Console.WriteLine("Please enter a value greater than zero.");
                     continue;
                 }
             }
@@ -1013,33 +902,7 @@ public class UpdateServerEntity
         }
     }
 
-    public static void AddNewEntry(string text)
-    {
-
-
-        if (!consolle)
-            goto skip;
-
-        try
-        {
-            RichTextBoxExtensions.AppendText(Form1.Consolewindow,
-                $"[{DateTime.Now.ToShortTimeString()}] {text}\r\n", Color.Green);
-            //  Thread.Sleep(150);
-            Form1.Consolewindow.ScrollToCaret();
-        }
-        catch
-        {
-        }
-
-        return;
-
-    skip:
-        Thread.Sleep(150);
-
-
-
-    }
-
+    
     public static bool IsFileReady(string filename)
     {
         // If the file can be opened for exclusive access it means that the file
@@ -1055,6 +918,49 @@ public class UpdateServerEntity
         {
             return false;
         }
+    }
+
+    public static long DirSize(DirectoryInfo d)
+    {
+        long size = 0;
+        // Add file sizes.
+        FileInfo[] fis = d.GetFiles();
+        foreach (FileInfo fi in fis)
+        {
+            size += fi.Length;
+        }
+        // Add subdirectory sizes.
+        DirectoryInfo[] dis = d.GetDirectories();
+        foreach (DirectoryInfo di in dis)
+        {
+            size += DirSize(di);
+        }
+        return size;
+    }
+
+
+    private static void DeleteOldFiles()
+    {
+        var last = Directory.EnumerateFiles(DeltaStorage)
+        .Select(fileName => new FileInfo(fileName))
+        .OrderByDescending(fileInfo => fileInfo.LastWriteTime) // or "CreationTime"
+        .Skip(50) // Skip 50 newest files
+        .Select(fileInfo => fileInfo.FullName);
+
+        foreach (var fileName in last)
+        {
+			try
+			{
+				File.Delete(fileName);
+			}
+			catch 
+			{
+
+				
+			}
+		}
+           
+
     }
 
     #endregion Helper

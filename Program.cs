@@ -12,8 +12,8 @@ namespace UpdateServer
         /// </summary>
         [STAThread]
         // [SecurityPermission(SecurityAction.Demand, Flags = SecurityPermissionFlag.ControlAppDomain)]
-        static void Main()
-        {
+		static void Main(string[] args)
+		{
             CosturaUtility.Initialize();
 
             // Set the unhandled exception mode to force all Windows Forms errors to go through
@@ -25,9 +25,25 @@ namespace UpdateServer
           //      new UnhandledExceptionEventHandler(CurrentDomain_UnhandledException);
 #endif
 
-            Application.EnableVisualStyles();
+           // Application.EnableVisualStyles();
            // Application.SetCompatibleTextRenderingDefault(true);
-            Application.Run(new Form1());
+		   new Heart();
+		   while (true)
+		   {
+			   // DO NOT INTERCEPT KEY PRESSES! 
+			   //IF CTRL+S IS FORWARDED TO THE CONSOLE APP, WEIRD THINGS WILL HAPPEN.
+			   ConsoleKeyInfo input = Console.ReadKey(false);
+
+			   if (input.Modifiers != ConsoleModifiers.Control)
+			   {
+				   continue;
+			   }
+
+			   if (input.Key == ConsoleKey.S)
+			   {
+				   break;
+			   }
+		   }
         }
 
         // Handle the UI exceptions by showing a dialog box, and asking the user whether
@@ -82,11 +98,13 @@ namespace UpdateServer
         }
         public static void CLog(string message, string Loc)
         {
+            var timestamp = DateTime.Now.ToString("MM/dd HH:mm");
             using (var streamWriter = new StreamWriter(Loc, true))
             {
-                streamWriter.Write(message + "\n");
+                streamWriter.Write(timestamp + message + "\n");
                 streamWriter.Close();
             }
         }
+        
     }
 }

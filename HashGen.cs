@@ -6,12 +6,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace UpdateServer
 {
 
 
-    class HashGen
+    public class HashGen
     {
         private static DirectoryInfo RustFolder;
         private static int files;
@@ -19,33 +20,29 @@ namespace UpdateServer
         static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
         static Dictionary<string, string> Errs = new Dictionary<string, string>();
         static Stopwatch timr;
-        static HashGen()
+        public HashGen()
         {
             timr = new Stopwatch();
             if (Directory.Exists("Rust"))
             {
                 RustFolder = new DirectoryInfo("Rust");
 
-                Run();
-
-
             }
             else
             {
-                Form1.AddNewEntry("Rust Folder not Found");
+                Console.WriteLine("Rust Folder not Found");
 
                 return;
 
-
             }
 
-            Form1.AddNewEntry(string.Empty);
+            Console.WriteLine(string.Empty);
 
 
 
         }
 
-        public static void Run()
+        public Task Run()
         {
             timr.Start();
             int i = 0;
@@ -92,7 +89,7 @@ namespace UpdateServer
                 }
 
 
-                Form1.AddNewEntry("Progress " + i + "  File:  " + hash + "|" + path);
+                Console.WriteLine("Progress " + i + "  File:  " + hash + "|" + path);
                 i++;
 
             }
@@ -101,9 +98,9 @@ namespace UpdateServer
             File.WriteAllText("Hashes.json", JsonConvert.SerializeObject(FileHashes, Formatting.Indented));
             File.WriteAllText("Errors.json", JsonConvert.SerializeObject(Errs, Formatting.Indented));
             timr.Stop();
-            Form1.AddNewEntry("Errors: " + errs.ToString() + "\n" + "Skipped : " + skip + "\n" + "Seconds : " + (timr.ElapsedMilliseconds) / 1000);
+            Console.WriteLine("Errors: " + errs.ToString() + "\n" + "Skipped : " + skip + "\n" + "Seconds : " + (timr.ElapsedMilliseconds) / 1000);
 
-
+            return Task.CompletedTask;
 
         }
 
