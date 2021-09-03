@@ -39,8 +39,9 @@ namespace UpdateServer
 			}
 			else
 			{
-				Console.WriteLine("Error - Version File Not Found!!!");
-				return;
+				//Console.WriteLine("Error - Version File Not Found!!!");
+				//return;
+				Vversion = "2314";
 			}
 
 

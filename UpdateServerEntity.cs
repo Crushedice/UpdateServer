@@ -32,6 +32,7 @@ public class UpdateServerEntity
     private static readonly long MaxFolderSize = 53687091200;
     private static string DeltaStorage = "DeltaStorage";
     private static List<string> StoredDeltas = new List<string>();
+    public static bool _debug=false;
     private static bool acceptInvalidCerts = true;
     private static bool mutualAuthentication = true;
     public static bool consolle = true;
@@ -50,7 +51,7 @@ public class UpdateServerEntity
     public static pooldelegate poolp;
     public UpdateServerEntity()
     {
-     
+     if(File.Exists("Debug")) _debug = true;
         Console.WriteLine("Server Start...");
         mkdelta = CreateDeltaforClient;
         CheckDeltas();
@@ -74,19 +75,19 @@ public class UpdateServerEntity
             mutualAuthentication = InputBoolean("Mutually authenticate:", true);
 
             server = new WatsonTcpServer(serverIp, serverPort, certFile, certPass);
-            server.AcceptInvalidCertificates = acceptInvalidCerts;
-            server.MutuallyAuthenticate = mutualAuthentication;
-            server.Logger = s => Console.WriteLine(s);
-            server.DebugMessages = false;
+           //server.AcceptInvalidCertificates = acceptInvalidCerts;
+           //server.MutuallyAuthenticate = mutualAuthentication;
+           //server.Logger = s => Console.WriteLine(s);
+           //server.DebugMessages = true;
 
         }
 
 
-        server.ClientConnected += ClientConnected;
-        server.ClientDisconnected += ClientDisconnected;
-        server.StreamReceived += StreamReceived;
-        server.SyncRequestReceived = SyncRequestReceived;
-        server.IdleClientTimeoutSeconds = 600;
+        server.Events.ClientConnected += ClientConnected;
+        server.Events.ClientDisconnected += ClientDisconnected;
+        server.Events.StreamReceived += StreamReceived;
+        server.Callbacks.SyncRequestReceived = SyncRequestReceived;
+        server.Settings.IdleClientTimeoutSeconds = 600;
         
 
 
@@ -96,7 +97,7 @@ public class UpdateServerEntity
 
         // server.MessageReceived = MessageReceived;
 
-        server.StartAsync();
+        server.Start();
 
         Console.WriteLine("Command [? for help]: ");
 
@@ -113,12 +114,16 @@ public class UpdateServerEntity
     }
     #region MainMethods
    
-
-    private static async void ClientConnected(object sender, ClientConnectedEventArgs args)
+    public static void Puts(string msg)
     {
-
+        if(_debug)
+            Console.WriteLine(msg);
+    }
+    private static async void ClientConnected(object sender, ConnectionEventArgs e)
+    {
+        Puts("Client Connected");
         string msg = string.Empty;
-        var fixedip = args.IpPort.Replace(':', '-');
+        var fixedip = e.IpPort.Replace(':', '-');
         // string clientfolder = @"ClientFolders\" + args.IpPort.Split(':')[0].Replace('.', '0');
         string clientfolder = @"ClientFolders\" + fixedip;
         var fullpath = new DirectoryInfo(clientfolder).FullName;
@@ -126,12 +131,12 @@ public class UpdateServerEntity
         if (!Directory.Exists(fullpath))
             Directory.CreateDirectory(clientfolder);
 
-        CurrentClients.Add(args.IpPort, new UpdateClient(args.IpPort, clientfolder));
-        CurrentClients[args.IpPort].Clientdeltazip = clientfolder + "\\Deltas" + args.IpPort.Replace(':', '-') + ".zip";
+        CurrentClients.Add(e.IpPort, new UpdateClient(e.IpPort, clientfolder));
+        CurrentClients[e.IpPort].Clientdeltazip = clientfolder + "\\Deltas" + e.IpPort.Replace(':', '-') + ".zip";
         currCount++;
 
         //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
-        SendMessage(Heart.Vversion, args.IpPort, true);
+        SendMessage(Heart.Vversion, e.IpPort, true);
 
         CheckforCleanup();
     }
@@ -148,9 +153,10 @@ public class UpdateServerEntity
 
 	}
 
-    private static void ClientDisconnected(object sender, ClientDisconnectedEventArgs args)
+    private static void ClientDisconnected(object sender, DisconnectionEventArgs args)
     {
-       // Console.WriteLine("Client disconnected: " + args.IpPort + ": " + args.Reason.ToString());
+        // Console.WriteLine("Client disconnected: " + args.IpPort + ": " + args.Reason.ToString());
+        Puts("Clkient Disconnected");
         CurrentClients.Remove(args.IpPort);
         currCount = currCount - 1;
 
@@ -165,26 +171,27 @@ public class UpdateServerEntity
         Dictionary<object, object> metadata;
         if (SendHashes)
         {
+            Puts("SendHashes");
             Dictionary<object, object> metad = new Dictionary<object, object>();
             metad.Add(Heart.Vversion, string.Empty);
-
-           // Console.WriteLine("Sending Hashes.. \n");
+            Puts("VersionSend: " + Heart.Vversion) ;
+            // Console.WriteLine("Sending Hashes.. \n");
             var hashstring = JsonConvert.SerializeObject(FileHashes);//InputDictionaryT();
             if (String.IsNullOrEmpty(userInput)) return;
             data = Encoding.UTF8.GetBytes(userInput);
             ms = new MemoryStream(data);
             //Console.WriteLine("SendingMeta Datalength:  " + ms.Length + "/ " + data.Length + "\n  MetaLength: ");
             // var success = await server.SendAsync(ipPort,metadata, data.Length, ms);
-            var success = server.SendAsync(ipPort, metad, hashstring);
+            var success = server.SendAsync(ipPort,hashstring, metad);
             //bool success = server.Send(ipPort, Encoding.UTF8.GetBytes(message));
-
+            Puts(success.ToString());
         }
         else
         {
             // Console.WriteLine("IP:Port: "+ipPort);
-           // Console.WriteLine("Sending Only Message... \n");
+            // Console.WriteLine("Sending Only Message... \n");
             //  Console.WriteLine("Data: "+userInput);
-
+            Puts("NoHashes");
 
             data = Encoding.UTF8.GetBytes(userInput);
             ms = new MemoryStream(data);
@@ -227,7 +234,7 @@ public class UpdateServerEntity
 
         using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read))
         {
-            await server.SendAsync(ip, metadata, source.Length, source).ConfigureAwait(false);
+            await server.SendAsync(ip,source.Length,source,metadata).ConfigureAwait(false);
         }
 
 
@@ -465,7 +472,7 @@ CreateZipFile(client);
 
     private static  SyncResponse SyncRequestReceived(SyncRequest req)
     {
-
+        Puts("syncrequest");
         try
         {
             var client = CurrentClients[req.IpPort];
@@ -509,16 +516,16 @@ CreateZipFile(client);
         }
         catch(Exception e)
         {
-            FileLogger.CLog( "Error in SyncResponse : " + e.Message, "Errors.txt");
+            Puts( "Error in SyncResponse : " + e.Message);
             var dict = new Dictionary<object, object>();
             dict.Add("false", "bar");
             //Console.WriteLine("Error with SyncResponse");
             return new SyncResponse(req, dict, "null");
         }
     }
-    private static void StreamReceived(object sender, StreamReceivedFromClientEventArgs args)
+    private static void StreamReceived(object sender, StreamReceivedEventArgs args)
     {
-
+        Puts("Stream received");
         try
         {
             var Meta = args.Metadata;
@@ -575,7 +582,7 @@ CreateZipFile(client);
         catch (Exception e)
         {
             // Console.WriteLine("Exception thrown");
-            FileLogger.CLog("Error in StreamReceived : " + e.Message, "Errors.txt");
+            Puts("Error in StreamReceived : " + e.Message);
         }
 
     }

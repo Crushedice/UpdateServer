@@ -125,8 +125,8 @@
     <Reference Include="System.Xml">
       <Private>True</Private>
     </Reference>
-    <Reference Include="WatsonTcp, Version=4.1.12.4, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\WatsonTcp.4.1.12.4\lib\net461\WatsonTcp.dll</HintPath>
+    <Reference Include="WatsonTcp, Version=4.8.14.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\WatsonTcp.4.8.14\lib\net461\WatsonTcp.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
