@@ -39,9 +39,9 @@ namespace UpdateServer
 			}
 			else
 			{
-				//Console.WriteLine("Error - Version File Not Found!!!");
+				Console.WriteLine("Error - Version File Not Found!!!");
 				//return;
-				Vversion = "2314";
+				Vversion = "2318";
 			}
 
 
@@ -112,19 +112,7 @@ namespace UpdateServer
 
 		}
 
-		public static void ShowUpdateThreads()
-		{
-
-			ProgressOvLk.Clear();
-			foreach (var x in CurUpdaters)
-			{
-				Console.WriteLine("Progress of :" + x.Key + " => " + x.Value + "\n");
-
-			}
-
-
-
-		}
+		
 
 		public static void ShowPoolThreads()
 		{
@@ -156,30 +144,7 @@ namespace UpdateServer
 			ShowPoolThreads();
 		}
 
-		public static void ModifyUpdateDic(string ip, string values, bool Remove = false)
-		{
 
-			if (Remove)
-			{
-				CurUpdaters.Remove(ip);
-				ShowUpdateThreads();
-				return;
-			}
-
-			if (!CurUpdaters.ContainsKey(ip))
-			{
-				CurUpdaters.Add(ip, values);
-
-
-			}
-			else
-			{
-				CurUpdaters[ip] = values;
-			}
-
-			ShowUpdateThreads();
-
-		}
 
 		private void BuildTree(DirectoryInfo directoryInfo, TreeNodeCollection addInMe)
 		{

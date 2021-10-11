@@ -57,7 +57,7 @@ public class UpdateServerEntity
         CheckDeltas();
         instance = this;
         FileHashes = Heart.FileHashes;
-        poolp = PoolProgress;
+      
         Start();
     }
 
@@ -81,13 +81,17 @@ public class UpdateServerEntity
            //server.DebugMessages = true;
 
         }
-
-
+        var ht = new WatsonTcpKeepaliveSettings();
+        ht.EnableTcpKeepAlives = true;
+        
         server.Events.ClientConnected += ClientConnected;
         server.Events.ClientDisconnected += ClientDisconnected;
         server.Events.StreamReceived += StreamReceived;
         server.Callbacks.SyncRequestReceived = SyncRequestReceived;
-        server.Settings.IdleClientTimeoutSeconds = 600;
+        server.Keepalive = ht;
+        server.Settings.DebugMessages = _debug;
+        if(_debug)
+        server.Settings.Logger=(s,e)=>Console.WriteLine(e);
         
 
 
@@ -99,17 +103,9 @@ public class UpdateServerEntity
 
         server.Start();
 
-        Console.WriteLine("Command [? for help]: ");
+        Console.WriteLine("Server Started.");
 
-        Console.WriteLine("Available commands:");
-        Console.WriteLine("  ?          help (this menu)");
-        Console.WriteLine("  q          quit");
-        Console.WriteLine("  cls        clear screen");
-        Console.WriteLine("  list       list clients");
-        Console.WriteLine("  send       send message to a client");
-        Console.WriteLine("  sendasync  send message to a client asynchronously");
-        Console.WriteLine("  remove     disconnect client");
-        Console.WriteLine("  psk        set preshared key");
+       
 
     }
     #region MainMethods
@@ -139,6 +135,7 @@ public class UpdateServerEntity
         SendMessage(Heart.Vversion, e.IpPort, true);
 
         CheckforCleanup();
+        CheckUsers();
     }
 
     private static void CheckforCleanup()
@@ -158,7 +155,7 @@ public class UpdateServerEntity
         // Console.WriteLine("Client disconnected: " + args.IpPort + ": " + args.Reason.ToString());
         Puts("Clkient Disconnected");
         CurrentClients.Remove(args.IpPort);
-        currCount = currCount - 1;
+      
 
     }
 
@@ -241,11 +238,12 @@ public class UpdateServerEntity
         if (stored)
         {
             FileLogger.CLog("  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
-
+            Console.WriteLine("SendStoredDelta");
         }
         else
         {
             FileLogger.CLog( "  UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
+            Console.WriteLine("Created New Update");
         }
 
       
@@ -283,10 +281,28 @@ public class UpdateServerEntity
         return (Math.Sign(byteCount) * num).ToString() + suf[place];
     }
 
+    static async Task SendProgress(string ip, string msg)
+    {
+
+        try
+        {
+            SyncResponse resp = server.SendAndWait(5000, ip, msg);
+        }
+        catch
+        {
+
+            
+        }
+
+
+    }
     public async void CreateDeltaforClient(UpdateClient client)
     {
 
         //Console.WriteLine("creating delta for client....");
+        Task.Run((() => SendProgress(client.ClientIP, "Starting Delta Creation")));
+            
+            
         try
         {
             List<CancellationTokenSource> tokenlist = new List<CancellationTokenSource>();
@@ -315,6 +331,7 @@ public class UpdateServerEntity
             server.DisconnectClient(client.ClientIP);
            
         }
+
 CreateZipFile(client);
 
             return;
@@ -379,28 +396,11 @@ CreateZipFile(client);
         // Heart.ModifyUpdateDic(client.ClientIP, "", true);
     }
 
-    public void PoolProgress()
-    {
-        int i = 0;
-        if ((i % 3) == 0);
-            //Console.WriteLine(i + "Threads reported as done");
-
-    }
-
-
-
-
     public static async Task<bool> Waitforall(List<Task> tasklist)
     {
 
-        //int timeout = 120000;
-        //Console.WriteLine("Taskamount: " + tasklist.Count());
+       
         await Task.WhenAll(tasklist.ToArray()).ConfigureAwait(false);
-
-
-
-
-
         return true;
 
     }
@@ -416,6 +416,16 @@ CreateZipFile(client);
 
             var newFilePath = Path.GetFullPath(Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
             if (!File.Exists(newFilePath)) return Task.CompletedTask;
+
+            while(!IsFileReady(newFilePath))
+            {
+                if(!server.IsClientConnected(client.ClientIP)) return Task.CompletedTask;
+
+                Task.Run(() => SendProgress(client.ClientIP,"Waiting in Queue for DeltaCreation..."));
+
+                Task.Delay(20000);
+            }
+
 
             var deltaFilePath = client.ClientFolder + relativePath.Replace(".octosig", string.Empty) + ".octodelta";
             var deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
@@ -662,14 +672,14 @@ CreateZipFile(client);
     #endregion MainMethods
 
     #region Helper
-    public void CheckUsers()
+    public static void CheckUsers()
     {
         
         var users = server.Connections;
 
         currCount = users;
 
-        var AllDirs = Directory.GetDirectories(@"ClientFolders");
+        var AllDirs = Directory.GetDirectories("ClientFolders");
         foreach (var x in AllDirs)
         {
 
@@ -678,29 +688,19 @@ CreateZipFile(client);
            // Console.WriteLine("Checking User " + thisone);
             if (!server.IsClientConnected(thisone))
             {
-
-
                 try
                 {
                     Directory.Delete(x, true);
                 }
-                catch
+                catch(Exception e)
                 {
-
+                    Console.WriteLine("Error In deleting Folder." + e.Message);
 
                 }
 
             }
 
         }
-
-
-
-
-
-
-
-
 
     }
 
@@ -778,9 +778,13 @@ CreateZipFile(client);
     public async Task CreateZipFile(UpdateClient client)
     { int retrycount = 0;
         // Create and open a new ZIP file
-        starrt:
+        Task.Run((() => SendProgress(client.ClientIP, "Making ZipFile")));
+
+    starrt:
        
             string zipFileName = client.Clientdeltazip;
+        if(File.Exists(zipFileName))File.Delete(zipFileName);
+
         try
         {
           
