@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "restore": {
+    "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj": {}
+  },
+  "projects": {
+    "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
+        "projectName": "UpdateServer",
+        "projectPath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
+        "packagesPath": "C:\\Users\\Crushed\\.nuget\\packages\\",
+        "outputPath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\obj\\",
+        "projectStyle": "PackageReference",
+        "skipContentFileWrite": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\Crushed\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\DevExpress 20.1.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\DevExpress 20.1\\Components\\System\\Components\\Packages": {},
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://www.nuget.org/api/v2/": {}
+        },
+        "frameworks": {
+          "net48": {
+            "projectReferences": {}
+          }
+        }
+      },
+      "frameworks": {
+        "net48": {
+          "dependencies": {
+            "Costura.Fody": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[5.7.0, )"
+            },
+            "FastRsyncNet": {
+              "target": "Package",
+              "version": "[2.3.1, )"
+            },
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.1, )"
+            },
+            "WatsonTcp": {
+              "target": "Package",
+              "version": "[4.8.14.1, )"
+            }
+          }
+        }
+      },
+      "runtimes": {
+        "win": {
+          "#import": []
+        },
+        "win-x64": {
+          "#import": []
+        },
+        "win-x86": {
+          "#import": []
+        }
+      }
+    }
+  }
+}
