@@ -130,7 +130,9 @@
   <ItemGroup>
     <Compile Include="Classes\ClientProcessor.cs" />
     <Compile Include="Classes\ConsoleWriter.cs" />
+    <Compile Include="Classes\OST.cs" />
     <Compile Include="Classes\UpdateQueue.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Heart.cs" />
     <Compile Include="Classes\HashGen.cs" />
     <Compile Include="Program.cs" />

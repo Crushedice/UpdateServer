@@ -15,6 +15,7 @@ namespace UpdateServer.Classes
     public class ClientProcessor
     {
         UpdateClient _client { get; }
+       public string tcpipport;
         int NrInQueue;
         ClientProcessor _instanceRef;
         private bool _running = false;
@@ -24,6 +25,7 @@ namespace UpdateServer.Classes
         public ClientProcessor(UpdateClient user)
         {
             _client = user;
+            tcpipport = user.ClientIP;
             _instanceRef = this;
         }
 
@@ -70,30 +72,27 @@ namespace UpdateServer.Classes
                         var SignatureFile = x.Split('\\').Last();//client.ClientFolder + filename));
 
                         var newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
-                        if (!File.Exists(newFilePath)) return;
-                        var deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", string.Empty) + ".octodelta";
+                        if (!File.Exists(newFilePath)) continue;
+                        var deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
                         var deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
                         if (!Directory.Exists(deltaOutputDirectory))
                             Directory.CreateDirectory(deltaOutputDirectory);
                         var deltaBuilder = new DeltaBuilder();
-                        using (var newFileStream = new FileStream(newFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
-                        using (var signatureFileStream =
-                            new FileStream(x, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
-                        using (var deltaStream = new FileStream(deltaFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                        using (var newFileStream = new FileStream(newFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        using (var signatureStream = new FileStream(x, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        using (var deltaStream = new FileStream(deltaFilePath, FileMode.Create, FileAccess.Write, FileShare.Read))
                         {
-                            deltaBuilder.BuildDelta(newFileStream,
-                                new SignatureReader(signatureFileStream, new ConsoleProgressReporter()),
-                                new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)));
+                            await deltaBuilder.BuildDeltaAsync(newFileStream, new SignatureReader(signatureStream, new ConsoleProgressReporter()), new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream))).ConfigureAwait(false);
                         }
-
                         _client.dataToSend.Add(deltaFilePath);
 
 
                     }
                     prg++;
-                    UpdateServerEntity.SendProgress(_client.ClientIP, $"Delta Progress: {prg} / {allc}");
+                    UpdateServerEntity.SendProgress(_client.ClientIP, $"Delta Progress: {prg} / {allc}"); 
+                    UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
                 }
-                UpdateServerEntity.Puts("Waiting for ");
+               
                // await Task.WhenAll(tasks).ConfigureAwait(false);
               
                 EndThisOne();
@@ -104,9 +103,9 @@ namespace UpdateServer.Classes
             catch (Exception e)
             {
                 UpdateServerEntity.SendProgress(_client.ClientIP, "Fatal Error. Please Try again!");
-                FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
+                FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");  EndThisOne();
                 UpdateServerEntity.server.DisconnectClient(_client.ClientIP);
-                EndThisOne();
+              
             }
 
             

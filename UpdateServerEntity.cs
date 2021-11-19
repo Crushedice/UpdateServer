@@ -42,7 +42,7 @@ public class UpdateServerEntity
     public static Queue<ClientProcessor> WaitingClients = new Queue<ClientProcessor>();
 
     public static bool _CurrLock = false;
-
+    public static ClientProcessor Occupant;
 
 
     public static pooldelegate poolp;
@@ -57,15 +57,16 @@ public class UpdateServerEntity
     }
 
     public static void TickQueue()
-    {
+    { Puts("Waitqueue Count: " + WaitingClients.Count());
         if(WaitingClients.Count > 0)
         {
 
-            Puts("Waitqueue Count: " + WaitingClients.Count());
+           
 
             if(!_CurrLock)
             {
                 var nextone = WaitingClients.Dequeue();
+                Occupant = nextone;
                 nextone.StartupThisOne();
                 _CurrLock = true;
                 return;
@@ -83,6 +84,7 @@ public class UpdateServerEntity
     public static void EndCall( UpdateClient _client)
     {
         _CurrLock = false;
+        Occupant = null;
         UpdateClient curr = _client;
         TickQueue();
         Task.Run(()=>CreateZipFile(curr));
@@ -100,9 +102,9 @@ public class UpdateServerEntity
         server.Events.StreamReceived += StreamReceived;
         server.Callbacks.SyncRequestReceived = SyncRequestReceived;
         server.Keepalive = ht;
-        server.Settings.DebugMessages = _debug;
-        if(_debug)
-        server.Settings.Logger=(s,e)=>Console.WriteLine(e);
+      //  server.Settings.DebugMessages = _debug;
+      // if(_debug)
+       // server.Settings.Logger=(s,e)=>Console.WriteLine(e);
         server.Start();
         Console.WriteLine("Server Started.");
 
@@ -123,10 +125,13 @@ public class UpdateServerEntity
         var fullpath = new DirectoryInfo(clientfolder).FullName;
 
         if (!Directory.Exists(fullpath))
+            Directory.CreateDirectory(fullpath);
+
+        if (!Directory.Exists(clientfolder))
             Directory.CreateDirectory(clientfolder);
 
         CurrentClients.Add(e.IpPort, new UpdateClient(e.IpPort, clientfolder));
-        CurrentClients[e.IpPort].Clientdeltazip = clientfolder + "\\Deltas" + e.IpPort.Replace(':', '-') + ".zip";
+        CurrentClients[e.IpPort].Clientdeltazip = clientfolder + @"\Deltas" + e.IpPort.Replace(':', '-') + ".zip";
         currCount++;
 
         //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
@@ -148,8 +153,21 @@ public class UpdateServerEntity
 	}
     private static void ClientDisconnected(object sender, DisconnectionEventArgs args)
     {
-        Puts("Clkient Disconnected");
+        Puts("Client Disconnected");
+
+        if(Occupant.tcpipport== args.IpPort)
+        {
+            Occupant = null;
+            _CurrLock = false;
+            TickQueue();
+
+
+        }
+
         CurrentClients.Remove(args.IpPort);
+
+
+
     }
     public static async Task SendMessage(string userInput, string ipPort, bool SendHashes)
     {
@@ -424,6 +442,7 @@ public class UpdateServerEntity
         }
         catch (Exception e)
         {
+            FileLogger.CLog("Error in stream : " + e.Message, "Errors.txt");
             // Console.WriteLine("Exception thrown");
             Puts("Error in StreamReceived : " + e.Message);
         }
@@ -470,10 +489,13 @@ public class UpdateServerEntity
         var AllDirs = Directory.GetDirectories("ClientFolders");
         foreach (var x in AllDirs)
         {
-            var userIpp = x.Replace("-", ":");
-            var thisone = userIpp.Replace(@"ClientFolders\", string.Empty);
-           // Console.WriteLine("Checking User " + thisone);
-            if (!server.IsClientConnected(thisone))
+          
+            var thisone = x.Split(Path.DirectorySeparatorChar).Last(); 
+            var userIpp = thisone.Replace("-", ":"); //userIpp.Replace(@"ClientFolders\", string.Empty);
+                                                     // Console.WriteLine("Checking User " + thisone);
+
+            Puts($"PathDirName: {thisone} , and \n usrip : {userIpp}.");
+            if (!server.IsClientConnected(userIpp))
             {
                 try
                 {
@@ -572,7 +594,7 @@ public class UpdateServerEntity
             server.DisconnectClient(client.ClientIP);
             return;
         }
-        await Task.Delay(15000);
+        await Task.Delay(10000);
         retrycount++;
         goto starrt;
 
