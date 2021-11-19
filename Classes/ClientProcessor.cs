@@ -56,24 +56,45 @@ namespace UpdateServer.Classes
 
             try
             {
-                List<CancellationTokenSource> tokenlist = new List<CancellationTokenSource>();
-                List<Task> tasks = new List<Task>();
-
                 var allDeltas = Directory.GetFiles(_client.ClientFolder.ToString(), "*", SearchOption.AllDirectories);
+                int allc = allDeltas.Count();
+                int prg = 0;
                 foreach (var x in allDeltas)
                 {
-                    var tokenSource = new CancellationTokenSource();
-                    var token = tokenSource.Token;
+                   
                     if (!x.Contains(".zip"))
                     {
+                        _client.filetoDelete.Add(x);
+                        var filename = Path.GetFileName(x);
+                        var relativePath = x.Replace(_client.ClientFolder, string.Empty);
+                        var SignatureFile = x.Split('\\').Last();//client.ClientFolder + filename));
 
-                        Task t = Task.Run(() => DeltaPool(x), token);
-                        tasks.Add(t);
-                        tokenlist.Add(tokenSource);
+                        var newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
+                        if (!File.Exists(newFilePath)) return;
+                        var deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", string.Empty) + ".octodelta";
+                        var deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
+                        if (!Directory.Exists(deltaOutputDirectory))
+                            Directory.CreateDirectory(deltaOutputDirectory);
+                        var deltaBuilder = new DeltaBuilder();
+                        using (var newFileStream = new FileStream(newFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+                        using (var signatureFileStream =
+                            new FileStream(x, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+                        using (var deltaStream = new FileStream(deltaFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                        {
+                            deltaBuilder.BuildDelta(newFileStream,
+                                new SignatureReader(signatureFileStream, new ConsoleProgressReporter()),
+                                new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)));
+                        }
+
+                        _client.dataToSend.Add(deltaFilePath);
+
+
                     }
+                    prg++;
+                    UpdateServerEntity.SendProgress(_client.ClientIP, $"Delta Progress: {prg} / {allc}");
                 }
-                UpdateServerEntity.Puts("Waiting for " + tasks.Count());
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                UpdateServerEntity.Puts("Waiting for ");
+               // await Task.WhenAll(tasks).ConfigureAwait(false);
               
                 EndThisOne();
 
@@ -82,9 +103,10 @@ namespace UpdateServer.Classes
             }
             catch (Exception e)
             {
+                UpdateServerEntity.SendProgress(_client.ClientIP, "Fatal Error. Please Try again!");
                 FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
                 UpdateServerEntity.server.DisconnectClient(_client.ClientIP);
-
+                EndThisOne();
             }
 
             

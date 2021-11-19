@@ -82,6 +82,7 @@ public class UpdateServerEntity
 
     public static void EndCall( UpdateClient _client)
     {
+        _CurrLock = false;
         UpdateClient curr = _client;
         TickQueue();
         Task.Run(()=>CreateZipFile(curr));
