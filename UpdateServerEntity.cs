@@ -12,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using UpdateServer;
 using UpdateServer.Classes;
 using WatsonTcp;
@@ -38,19 +39,21 @@ public class UpdateServerEntity
     public static int currCount = 0;
     public static UpdateServerEntity instance = null;
     public delegate void pooldelegate();
+    public delegate Task SendMsg(string a ,string b ,bool c);
     public static ConsoleWriter consoleWriter = new ConsoleWriter();
     public static Queue<ClientProcessor> WaitingClients = new Queue<ClientProcessor>();
 
     public static bool _CurrLock = false;
     public static ClientProcessor Occupant;
 
-
+    public static SendMsg sendingMsg;
     public static pooldelegate poolp;
     public UpdateServerEntity()
     {
      if(File.Exists("Debug")) _debug = true;
         Console.WriteLine("Server Start...");
         CheckDeltas();
+        sendingMsg = SendMessage;
         instance = this;
         FileHashes = Heart.FileHashes;
         Start();
@@ -135,8 +138,9 @@ public class UpdateServerEntity
         currCount++;
 
         //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
-        SendMessage(Heart.Vversion, e.IpPort, true);
 
+        new Thread(delegate () { sendingMsg(Heart.Vversion, e.IpPort, true); }).Start();
+        
         CheckforCleanup();
         CheckUsers();
     }
@@ -169,7 +173,7 @@ public class UpdateServerEntity
 
 
     }
-    public static async Task SendMessage(string userInput, string ipPort, bool SendHashes)
+    public async Task SendMessage(string userInput, string ipPort, bool SendHashes)
     {
       
 
@@ -200,8 +204,8 @@ public class UpdateServerEntity
             //  Console.WriteLine("Data: "+userInput);
             Puts("NoHashes");
 
-            data = Encoding.UTF8.GetBytes(userInput);
-            ms = new MemoryStream(data);
+          //  data = Encoding.UTF8.GetBytes(userInput);
+          //  ms = new MemoryStream(data);
 
            // Console.WriteLine("SendingMsgDatalength:  " + ms.Length + "/ " + data.Length + "\n");
             // await server.SendAsync(ipPort, ms);
@@ -212,7 +216,7 @@ public class UpdateServerEntity
             {
                 var client = CurrentClients[ipPort];
                 var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
-                Task.Run(() => (SendNetData(ipPort, filen, true)));
+                await Task.Run(() => (SendNetData(ipPort, filen, true))).ConfigureAwait(false);
             }
 
         }
@@ -324,13 +328,22 @@ public class UpdateServerEntity
         client.SignatureHash = msg;
         if (StoredDeltas.Contains(client.SignatureHash))
         {
-            var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
-            Task.Run(() => (SendNetData(client.ClientIP, filen, true)));
+           // Task.Run(() => SendStoredUpdate(client, msg));
             return true;
         }
-
+        
         return false;
     }
+
+    static async Task SendStoredUpdate(UpdateClient client, string msg)
+    {
+
+        var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
+        // "STORE|true"
+        await sendingMsg("STORE|true", client.ClientIP, false).ConfigureAwait(false);
+
+    }
+
     private static  SyncResponse SyncRequestReceived(SyncRequest req)
     {
         Puts("syncrequest");
@@ -350,6 +363,9 @@ public class UpdateServerEntity
 
 
                     dict.Add("true", "bar");
+                    Task.Factory.StartNew(() => { SendStoredUpdate(client, String.Empty); });
+
+                   
                     return new SyncResponse(req, dict, "null");
                 }
                 else
@@ -466,7 +482,7 @@ public class UpdateServerEntity
         catch(Exception e)
         {
             FileLogger.CLog("Error in Extract : " + e.Message, "Errors.txt");
-            SendMessage("ERR|Error In Extracting Zip Serverside", currentUser.ClientIP, false);
+            sendingMsg("ERR|Error In Extracting Zip Serverside", currentUser.ClientIP, false);
             Task.Delay(1000);
             server.DisconnectClient(currentUser.ClientIP);
             return Task.CompletedTask;

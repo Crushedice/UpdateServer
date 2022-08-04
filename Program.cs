@@ -14,7 +14,7 @@ namespace UpdateServer
         // [SecurityPermission(SecurityAction.Demand, Flags = SecurityPermissionFlag.ControlAppDomain)]
 		static void Main(string[] args)
 		{
-            CosturaUtility.Initialize();
+         
 
             // Set the unhandled exception mode to force all Windows Forms errors to go through
             // our handler.
