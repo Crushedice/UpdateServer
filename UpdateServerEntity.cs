@@ -43,8 +43,10 @@ public class UpdateServerEntity
     public static ConsoleWriter consoleWriter = new ConsoleWriter();
     public static Queue<ClientProcessor> WaitingClients = new Queue<ClientProcessor>();
 
-    public static bool _CurrLock = false;
-    public static ClientProcessor Occupant;
+    public static int MaxProcessors = 3;
+    //public static bool _CurrLock = false;
+    //public static ClientProcessor Occupant;
+    public static List<ClientProcessor> Occupants;
 
     public static SendMsg sendingMsg;
     public static pooldelegate poolp;
@@ -66,31 +68,46 @@ public class UpdateServerEntity
 
            
 
-            if(!_CurrLock)
+            if(Occupants.Count<3)
             {
                 var nextone = WaitingClients.Dequeue();
-                Occupant = nextone;
+                Occupants.Add(nextone);
                 nextone.StartupThisOne();
-                _CurrLock = true;
-                return;
+                //_CurrLock = true;
+               // return;
             }
-            else
+            foreach (var c in WaitingClients)
             {
-                foreach(var c in WaitingClients)
-                {
-                    c.Notify();
-                }
+                c.Notify();
             }
+
         }
     }
 
-    public static void EndCall( UpdateClient _client)
+    public static void EndCall(UpdateClient client, ClientProcessor pr, string zipFileName, bool abort = false)
     {
-        _CurrLock = false;
-        Occupant = null;
-        UpdateClient curr = _client;
+        //_CurrLock = false;
+        Occupants.Remove(pr);
+        UpdateClient curr = client;
         TickQueue();
-        Task.Run(()=>CreateZipFile(curr));
+
+        if (server.IsClientConnected(client.ClientIP))
+            Task.Run(() => SendNetData(client.ClientIP, zipFileName));
+        else
+        {
+            if (client.SignatureHash != string.Empty)
+            {
+                if (!StoredDeltas.Contains(client.SignatureHash))
+                {
+                    StoredDeltas.Add(client.SignatureHash);
+
+                    File.Move(zipFileName, DeltaStorage + "\\" + client.SignatureHash + ".zip");
+                }
+            }
+        }
+
+
+
     }
 
 
@@ -159,10 +176,14 @@ public class UpdateServerEntity
     {
         Puts("Client Disconnected");
 
-        if(Occupant.tcpipport== args.IpPort)
+        var ox = from v in Occupants
+                 where v.tcpipport == args.IpPort
+                 select v;
+
+        if(ox!=null)
         {
-            Occupant = null;
-            _CurrLock = false;
+            Occupants.Remove(ox.First());
+           
             TickQueue();
 
 
@@ -545,78 +566,7 @@ public class UpdateServerEntity
         if (bom[0] == 0 && bom[1] == 0 && bom[2] == 0xfe && bom[3] == 0xff) return Encoding.UTF32;
         return Encoding.ASCII;
     }
-    public static async Task CreateZipFile(UpdateClient client)
-    { 
-        int retrycount = 0;
-        // Create and open a new ZIP file
-        Task.Run((() => SendProgress(client.ClientIP, "Making ZipFile")));
-
-    starrt:
-       
-            string zipFileName = client.Clientdeltazip;
-        if(File.Exists(zipFileName))File.Delete(zipFileName);
-
-        try
-        {
-          
-           // var zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create);
-            using(var zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
-            { 
-                foreach (var x in client.dataToSend)
-                {
-                    var relativePath = x.Replace(client.ClientFolder + "\\Rust\\", string.Empty);
-                    var fixedname = relativePath.Replace('\\', '/');
-                    zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
-                }
-                foreach (var y in client.dataToAdd)
-                {
-                    var relativePath = y.Replace("Rust\\", string.Empty);
-                    var fixedname = relativePath.Replace('\\', '/');
-                    zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
-                }
-            }
-           
-            client.filetoDelete.Add(zipFileName);
-        }
-        catch (Exception e)
-        {
-            FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
-            goto retrying;
-
-        }
-
-        if (server.IsClientConnected(client.ClientIP))
-                Task.Run(()=>SendNetData(client.ClientIP, zipFileName));
-        else
-        {
-            if (client.SignatureHash != string.Empty)
-            {
-                if (!StoredDeltas.Contains(client.SignatureHash))
-                {
-                    StoredDeltas.Add(client.SignatureHash);
-                
-                    File.Move(zipFileName, DeltaStorage + "\\" + client.SignatureHash + ".zip");
-                }
-            }
-        }
-
-        return;
-
-        retrying:
-
-        if (retrycount > 5)
-        {
-        //    FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm") + "  abort of packing zip after  " + retrycount + " Retry ", "Finished.txt");
-            server.DisconnectClient(client.ClientIP);
-            return;
-        }
-        await Task.Delay(10000);
-        retrycount++;
-        goto starrt;
-
-
-
-    }
+    
     public static bool IsFileReady(string filename)
     {
         // If the file can be opened for exclusive access it means that the file
