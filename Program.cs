@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Sentry;
+using System;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,20 +15,40 @@ namespace UpdateServer
         // [SecurityPermission(SecurityAction.Demand, Flags = SecurityPermissionFlag.ControlAppDomain)]
 		static void Main(string[] args)
 		{
-         
+
 
             // Set the unhandled exception mode to force all Windows Forms errors to go through
             // our handler.
+            SentrySdk.Init(o =>
+            {
+                // NOTE: Change the URL below to your own DSN. Get it on sentry.io in the project settings (or when you create a new project):
+                o.Dsn = "https://620a6481f9d042c6936edd0dc6f7901b@sentry.rusticaland.net/4";
+                // When configuring for the first time, to see what the SDK is doing:
+                o.Debug = true;
+                // Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
+                // We recommend adjusting this value in production.
+                o.TracesSampleRate = 1.0;
+                o.AttachStacktrace = true;
+                o.AddDiagnosticSourceIntegration();
+                o.AutoSessionTracking = true;
+                o.SampleRate = (float?)0.25;
+                o.MaxBreadcrumbs = 50;
+                o.SendDefaultPii = true;
+                o.StackTraceMode = StackTraceMode.Enhanced;
+                o.DiagnosticLevel = SentryLevel.Debug;
+                o.Release = "1.2.0.1";
+               
+            });
 
 #if DEBUG
           //  Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
           //  AppDomain.CurrentDomain.UnhandledException += 
           //      new UnhandledExceptionEventHandler(CurrentDomain_UnhandledException);
 #endif
-
-           // Application.EnableVisualStyles();
-           // Application.SetCompatibleTextRenderingDefault(true);
-		   new Heart();
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+            // Application.EnableVisualStyles();
+            // Application.SetCompatibleTextRenderingDefault(true);
+            new Heart();
 		   while (true)
 		   {
 			   // DO NOT INTERCEPT KEY PRESSES! 

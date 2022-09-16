@@ -49,6 +49,14 @@
               "target": "Package",
               "version": "[13.0.1, )"
             },
+            "Sentry": {
+              "target": "Package",
+              "version": "[3.21.0, )"
+            },
+            "Sentry.DiagnosticSource": {
+              "target": "Package",
+              "version": "[3.21.0, )"
+            },
             "WatsonTcp": {
               "target": "Package",
               "version": "[4.8.14.1, )"

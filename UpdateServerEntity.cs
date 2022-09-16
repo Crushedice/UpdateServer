@@ -3,6 +3,7 @@ using FastRsync.Delta;
 using FastRsync.Diagnostics;
 using FastRsync.Signature;
 using Newtonsoft.Json;
+using Sentry;
 using StringHelp;
 using System;
 using System.Collections.Generic;
@@ -40,29 +41,36 @@ public class UpdateServerEntity
     public static UpdateServerEntity instance = null;
     public delegate void pooldelegate();
     public delegate Task SendMsg(string a ,string b ,bool c);
+    public delegate Task SendNet(string a ,string b ,bool c = false);
     public static ConsoleWriter consoleWriter = new ConsoleWriter();
     public static Queue<ClientProcessor> WaitingClients = new Queue<ClientProcessor>();
 
     public static int MaxProcessors = 3;
     //public static bool _CurrLock = false;
     //public static ClientProcessor Occupant;
-    public static List<ClientProcessor> Occupants;
+    public static List<ClientProcessor> Occupants = new List<ClientProcessor>();
 
     public static SendMsg sendingMsg;
     public static pooldelegate poolp;
+    public static SendNet _sendNet;
     public UpdateServerEntity()
     {
      if(File.Exists("Debug")) _debug = true;
         Console.WriteLine("Server Start...");
         CheckDeltas();
         sendingMsg = SendMessage;
+        _sendNet = SendNetData;
         instance = this;
         FileHashes = Heart.FileHashes;
         Start();
     }
 
     public static void TickQueue()
-    { Puts("Waitqueue Count: " + WaitingClients.Count());
+    {
+        Puts("Waitqueue Count: " + WaitingClients.Count());
+
+        Puts("Current Processors: " + Occupants.Count());
+
         if(WaitingClients.Count > 0)
         {
 
@@ -70,6 +78,7 @@ public class UpdateServerEntity
 
             if(Occupants.Count<3)
             {
+                Puts("Occupants less then 3. Processing commence ");
                 var nextone = WaitingClients.Dequeue();
                 Occupants.Add(nextone);
                 nextone.StartupThisOne();
@@ -92,7 +101,7 @@ public class UpdateServerEntity
         TickQueue();
 
         if (server.IsClientConnected(client.ClientIP))
-            Task.Run(() => SendNetData(client.ClientIP, zipFileName));
+            Task.Run(() => _sendNet(client.ClientIP, zipFileName));
         else
         {
             if (client.SignatureHash != string.Empty)
@@ -156,11 +165,28 @@ public class UpdateServerEntity
 
         //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
 
-        new Thread(delegate () { sendingMsg(Heart.Vversion, e.IpPort, true); }).Start();
-        
+        // sendingMsg(Heart.Vversion, e.IpPort, true);
+        quickhashes(e.IpPort);
+        TickQueue();
         CheckforCleanup();
         CheckUsers();
     }
+    public static async void quickhashes(string ipPort)
+    {
+        try
+        {
+            Dictionary<object, object> metad = new Dictionary<object, object>();
+            metad.Add(Heart.Vversion, string.Empty);
+            var hashstring = JsonConvert.SerializeObject(FileHashes);
+            _ = await server.SendAsync(ipPort, hashstring, metad).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            Puts("Exception: " + e.Message);
+           _= sendingMsg(Heart.Vversion, ipPort, true);
+        }
+    }
+
     private static void CheckforCleanup()
     {
 
@@ -196,13 +222,17 @@ public class UpdateServerEntity
     }
     public async Task SendMessage(string userInput, string ipPort, bool SendHashes)
     {
-      
+        var transaction = SentrySdk.StartTransaction(
+    "SendMessage Async",
+    "Operation on : " + ipPort
+  );
 
         byte[] data = null;
         MemoryStream ms = null;
         Dictionary<object, object> metadata;
         if (SendHashes)
         {
+            var span1 = transaction.StartChild("SendHashes");
             Puts("SendHashes");
             Dictionary<object, object> metad = new Dictionary<object, object>();
             metad.Add(Heart.Vversion, string.Empty);
@@ -214,9 +244,9 @@ public class UpdateServerEntity
             ms = new MemoryStream(data);
             //Console.WriteLine("SendingMeta Datalength:  " + ms.Length + "/ " + data.Length + "\n  MetaLength: ");
             // var success = await server.SendAsync(ipPort,metadata, data.Length, ms);
-            var success = server.SendAsync(ipPort,hashstring, metad);
+            await server.SendAsync(ipPort,hashstring, metad).ConfigureAwait(false);
             //bool success = server.Send(ipPort, Encoding.UTF8.GetBytes(message));
-            Puts(success.ToString());
+            span1.Finish();
         }
         else
         {
@@ -224,26 +254,38 @@ public class UpdateServerEntity
             // Console.WriteLine("Sending Only Message... \n");
             //  Console.WriteLine("Data: "+userInput);
             Puts("NoHashes");
+            var span2 = transaction.StartChild("Send Stored Delta");
+            //  data = Encoding.UTF8.GetBytes(userInput);
+            //  ms = new MemoryStream(data);
 
-          //  data = Encoding.UTF8.GetBytes(userInput);
-          //  ms = new MemoryStream(data);
-
-           // Console.WriteLine("SendingMsgDatalength:  " + ms.Length + "/ " + data.Length + "\n");
+            // Console.WriteLine("SendingMsgDatalength:  " + ms.Length + "/ " + data.Length + "\n");
             // await server.SendAsync(ipPort, ms);
 
-          //  Console.WriteLine("Sending message:" + data);
+            //  Console.WriteLine("Sending message:" + data);
             var success = server.SendAsync(ipPort, userInput);
             if (userInput == "STORE|true")
             {
                 var client = CurrentClients[ipPort];
                 var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
-                await Task.Run(() => (SendNetData(ipPort, filen, true))).ConfigureAwait(false);
+               _=  _sendNet(ipPort, filen, true);
             }
 
+            span2.Finish();
         }
     }
-    public static async Task SendNetData(string ip, string zip, bool stored = false)
+    public async Task SendNetData(string ip, string zip, bool stored = false)
     {
+
+     
+       
+        var transaction = SentrySdk.StartTransaction(
+         "UpdateServer-SendNetData",
+         "Operating on : "+ip
+          );
+       
+
+
+        Puts("SendNetData...");
         var client = CurrentClients[ip];
         Dictionary<object, object> metadata = new Dictionary<object, object>();
         // try
@@ -262,12 +304,13 @@ public class UpdateServerEntity
         //    Task.Delay(5000);
         //
         //}
-
+        var span = transaction.StartChild("SendAsync Filestream");
         using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read,FileShare.Read))
         {
-            await server.SendAsync(ip,source.Length,source,metadata).ConfigureAwait(false);
+            _ = await server.SendAsync(ip, source.Length, source, metadata).ConfigureAwait(false);
         }
-
+        span.Finish(); // Mark the span as finished
+        
 
         if (stored)
         {
@@ -302,7 +345,7 @@ public class UpdateServerEntity
             File.Delete(x);
         }
 
-       
+        transaction.Finish();
     }
     static String BytesToString(long byteCount)
     {
@@ -378,7 +421,7 @@ public class UpdateServerEntity
                 Messagee = req.Metadata.First().Key.ToString();
 
                 var ex = fileexisting(client, Messagee).Result;
-
+                Puts("Looking for Hash : " + Messagee);
                 if (ex)
                 {
 
@@ -508,6 +551,8 @@ public class UpdateServerEntity
             server.DisconnectClient(currentUser.ClientIP);
             return Task.CompletedTask;
         }
+
+        SendProgress(currentUser.ClientIP, "Enqueue for processing...");
         var newprocessor = new ClientProcessor(currentUser);
         WaitingClients.Enqueue(newprocessor);
         TickQueue();

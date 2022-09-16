@@ -13,4 +13,7 @@
     <SourceRoot Include="C:\Users\Crushed\.nuget\packages\" />
     <SourceRoot Include="C:\Program Files\DevExpress 22.1\Components\Offline Packages\" />
   </ItemGroup>
+  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)sentry\3.21.0\buildTransitive\Sentry.props" Condition="Exists('$(NuGetPackageRoot)sentry\3.21.0\buildTransitive\Sentry.props')" />
+  </ImportGroup>
 </Project>

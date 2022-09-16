@@ -2,6 +2,7 @@
 using FastRsync.Delta;
 using FastRsync.Diagnostics;
 using FastRsync.Signature;
+using Sentry;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,6 +21,8 @@ namespace UpdateServer.Classes
         int NrInQueue;
         ClientProcessor _instanceRef;
         private bool _running = false;
+        private ITransaction transaction;
+        private ISpan waitspan;
 
 
 
@@ -28,6 +31,8 @@ namespace UpdateServer.Classes
             _client = user;
             tcpipport = user.ClientIP;
             _instanceRef = this;
+            transaction = SentrySdk.StartTransaction("ClientProcessor","User: "+user.ClientIP);
+            waitspan = transaction.StartChild("Entry.Wait");
         }
 
         public void Notify()
@@ -38,6 +43,7 @@ namespace UpdateServer.Classes
 
         public void StartupThisOne()
         {
+            waitspan.Finish();
             _running = true;
             Task.Run(()=>CreateDeltaforClient());
 
@@ -53,7 +59,7 @@ namespace UpdateServer.Classes
 
         private async void CreateDeltaforClient()
         {
-
+            var span = transaction.StartChild("StartCreatingDelta");
             //Console.WriteLine("creating delta for client....");
             Task.Run((() => UpdateServerEntity.SendProgress(_client.ClientIP, "Starting Delta Creation")));
 
@@ -97,9 +103,9 @@ namespace UpdateServer.Classes
                // await Task.WhenAll(tasks).ConfigureAwait(false);
               
                 EndThisOne();
-
+                span.Finish();
                 //Console.WriteLine("all threads Exited.  Sending data");
-
+                transaction.Finish();
             }
             catch (Exception e)
             {
@@ -108,7 +114,7 @@ namespace UpdateServer.Classes
                 UpdateServerEntity.EndCall(_client, this,"", true);
 
                 UpdateServerEntity.server.DisconnectClient(_client.ClientIP);
-              
+                SentrySdk.CaptureException(e);
             }
 
             
