@@ -104,6 +104,7 @@ public class UpdateServerEntity
             Task.Run(() => _sendNet(client.ClientIP, zipFileName));
         else
         {
+            SentrySdk.AddBreadcrumb("Client is not connected anymore to send Zip",client.ClientIP);
             if (client.SignatureHash != string.Empty)
             {
                 if (!StoredDeltas.Contains(client.SignatureHash))
@@ -224,7 +225,7 @@ public class UpdateServerEntity
     {
         var transaction = SentrySdk.StartTransaction(
     "SendMessage Async",
-    "Operation on : " + ipPort
+    ipPort,userInput
   );
 
         byte[] data = null;
@@ -232,7 +233,7 @@ public class UpdateServerEntity
         Dictionary<object, object> metadata;
         if (SendHashes)
         {
-            var span1 = transaction.StartChild("SendHashes");
+            var span1 = transaction.StartChild("SendHashes",ipPort);
             Puts("SendHashes");
             Dictionary<object, object> metad = new Dictionary<object, object>();
             metad.Add(Heart.Vversion, string.Empty);
@@ -254,7 +255,7 @@ public class UpdateServerEntity
             // Console.WriteLine("Sending Only Message... \n");
             //  Console.WriteLine("Data: "+userInput);
             Puts("NoHashes");
-            var span2 = transaction.StartChild("Send Stored Delta");
+            var span2 = transaction.StartChild("Send Stored Delta",ipPort);
             //  data = Encoding.UTF8.GetBytes(userInput);
             //  ms = new MemoryStream(data);
 
@@ -279,8 +280,8 @@ public class UpdateServerEntity
      
        
         var transaction = SentrySdk.StartTransaction(
-         "UpdateServer-SendNetData",
-         "Operating on : "+ip
+         "SendNetData",
+         ip,zip
           );
        
 
@@ -304,8 +305,8 @@ public class UpdateServerEntity
         //    Task.Delay(5000);
         //
         //}
-        var span = transaction.StartChild("SendAsync Filestream");
-        using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read,FileShare.Read))
+        var span = transaction.StartChild("SendAsync Filestream",ip);
+        using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read,FileShare.Read, 4096, FileOptions.Asynchronous))
         {
             _ = await server.SendAsync(ip, source.Length, source, metadata).ConfigureAwait(false);
         }

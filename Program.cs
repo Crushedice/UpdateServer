@@ -24,28 +24,29 @@ namespace UpdateServer
                 // NOTE: Change the URL below to your own DSN. Get it on sentry.io in the project settings (or when you create a new project):
                 o.Dsn = "https://620a6481f9d042c6936edd0dc6f7901b@sentry.rusticaland.net/4";
                 // When configuring for the first time, to see what the SDK is doing:
-                o.Debug = true;
+                o.Debug = false;
                 // Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
                 // We recommend adjusting this value in production.
                 o.TracesSampleRate = 1.0;
                 o.AttachStacktrace = true;
                 o.AddDiagnosticSourceIntegration();
                 o.AutoSessionTracking = true;
-                o.SampleRate = (float?)0.25;
-                o.MaxBreadcrumbs = 50;
+                o.SampleRate = (float?)1;
+                o.MaxBreadcrumbs = 150;
                 o.SendDefaultPii = true;
                 o.StackTraceMode = StackTraceMode.Enhanced;
                 o.DiagnosticLevel = SentryLevel.Debug;
-                o.Release = "1.2.0.1";
+                o.Release = "1.2.1.0";
                
             });
 
-#if DEBUG
-          //  Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-          //  AppDomain.CurrentDomain.UnhandledException += 
-          //      new UnhandledExceptionEventHandler(CurrentDomain_UnhandledException);
-#endif
+          
+            
+
+
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+
+            Application.ThreadException += Application_ThreadException;
             // Application.EnableVisualStyles();
             // Application.SetCompatibleTextRenderingDefault(true);
             new Heart();
@@ -67,12 +68,18 @@ namespace UpdateServer
 		   }
         }
 
+        private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
+        {
+            SentrySdk.CaptureException(e.Exception);
+        }
+
         // Handle the UI exceptions by showing a dialog box, and asking the user whether
         // or not they wish to abort execution.
         // NOTE: This exception cannot be kept from terminating the application - it can only 
         // log the event, and inform the user about it. 
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
+            SentrySdk.CaptureException((Exception)e.ExceptionObject);
             //  try
             //  {
             //      Exception ex = (Exception)e.ExceptionObject;
