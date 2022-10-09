@@ -36,7 +36,7 @@ namespace UpdateServer
                 o.SendDefaultPii = true;
                 o.StackTraceMode = StackTraceMode.Enhanced;
                 o.DiagnosticLevel = SentryLevel.Debug;
-                o.Release = "1.2.1.0";
+                o.Release = "1.2.1.5";
                
             });
 

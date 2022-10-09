@@ -45,6 +45,8 @@ public class UpdateServerEntity
     public static ConsoleWriter consoleWriter = new ConsoleWriter();
     public static Queue<ClientProcessor> WaitingClients = new Queue<ClientProcessor>();
 
+    public static List<string> ClientFiles = new List<string>();
+
     public static int MaxProcessors = 3;
     //public static bool _CurrLock = false;
     //public static ClientProcessor Occupant;
@@ -62,6 +64,18 @@ public class UpdateServerEntity
         _sendNet = SendNetData;
         instance = this;
         FileHashes = Heart.FileHashes;
+
+        foreach (var x in Directory.GetFiles(Rustfolderroot, "*", SearchOption.AllDirectories))
+        {
+            var trimmedpath = x.Replace(Path.GetDirectoryName(x), "");
+
+
+            ClientFiles.Add(trimmedpath);
+
+
+        }
+
+
         Start();
     }
 
@@ -161,7 +175,9 @@ public class UpdateServerEntity
             Directory.CreateDirectory(clientfolder);
 
         CurrentClients.Add(e.IpPort, new UpdateClient(e.IpPort, clientfolder));
-        CurrentClients[e.IpPort].Clientdeltazip = clientfolder + @"\Deltas" + e.IpPort.Replace(':', '-') + ".zip";
+
+       
+        CurrentClients[e.IpPort].Clientdeltazip = clientfolder + @"\" + e.IpPort.Replace(':', '-') + ".zip";
         currCount++;
 
         //     SendMessage("V|" + Heart.Vversion + "|", args.IpPort, true);
@@ -199,6 +215,22 @@ public class UpdateServerEntity
 		}
 
 	}
+
+    public static bool IsFileInClient(string filename)
+    {
+        string fixeds = "";
+        if (filename.Contains("octosig"))
+        {
+            fixeds = filename.Replace(".octosig", "");
+
+            return ClientFiles.Contains(fixeds);
+
+        }
+
+        return ClientFiles.Contains(filename);
+
+
+    }
     private static void ClientDisconnected(object sender, DisconnectionEventArgs args)
     {
         Puts("Client Disconnected");
@@ -510,9 +542,13 @@ public class UpdateServerEntity
                 {
 
                     user.dataToAdd.Add("Rust\\" + curr.Key.ToString());
+                    File.AppendAllText("DataToAdd.txt", curr.Key.ToString() + "__" + curr.Value.ToString());
+
                 }
 
-            
+                File.AppendAllText("DataToAdd.txt", "\n \n \n");
+
+
             }
 
             file.Flush();
@@ -539,8 +575,8 @@ public class UpdateServerEntity
         {
             if (Directory.Exists(currentUser.ClientFolder + "//Rust"))
                 Directory.Delete(currentUser.ClientFolder + "//Rust", true);
-            if (!File.Exists(finalPath))
-                ZipFile.ExtractToDirectory(path, finalPath, enc);
+           
+            ZipFile.ExtractToDirectory(path, finalPath, enc);
             if (IsFileReady(path))
                 File.Delete(path);
         }

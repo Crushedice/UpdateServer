@@ -5,6 +5,6 @@
     <EnableSQLServerDebugging>false</EnableSQLServerDebugging>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+    <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
   </PropertyGroup>
 </Project>

@@ -77,17 +77,33 @@ namespace UpdateServer.Classes
                             var iriginal = x;
                             var filename = x;
                             var relativePath = x.Replace(_client.ClientFolder, string.Empty);
-                            var SignatureFile = x.Split('\\').Last();//client.ClientFolder + filename));
+                            var filenameonly = x.Replace(Path.GetDirectoryName(x), "");
 
                             var newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
-                            if (!File.Exists(newFilePath)) continue;
-                            if (!File.Exists(x)) continue;
+                            Console.WriteLine("Is File in client : "+filenameonly);
+                            if (UpdateServerEntity.IsFileInClient(filenameonly))
+                            {
+
+                                
+                                Console.WriteLine("true");
+                                continue;
+                            
+                            }
+
+
                             
                             var deltaFilePath = filename.Replace(".octosig", ".octodelta");
 
-                            if (File.Exists(deltaFilePath)) continue;
+                           // if (File.Exists(deltaFilePath))
+                           // {
+                           //
+                           //     SentrySdk.CaptureMessage("DeltaFilePath : " + deltaFilePath);
+                           //     continue;
+                           //
+                           //
+                           // }
 
-                            var deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
+                        var deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
                             if (!Directory.Exists(deltaOutputDirectory))
                                 Directory.CreateDirectory(deltaOutputDirectory);
                             var deltaBuilder = new DeltaBuilder();
@@ -135,13 +151,13 @@ namespace UpdateServer.Classes
             Task.Run((() => UpdateServerEntity.SendProgress(_client.ClientIP, "Making ZipFile")));
             var allitems = _client.dataToAdd.Count() + _client.dataToSend.Count();
             int itemcount = 0;
-string zipFileName = _client.Clientdeltazip;
-SentrySdk.AddBreadcrumb(_client.Clientdeltazip, _client.ClientIP);
+            string zipFileName = _client.Clientdeltazip;
+            SentrySdk.AddBreadcrumb(_client.Clientdeltazip, _client.ClientIP);
 
             starrt:
 
             
-            if (File.Exists(zipFileName)) File.Delete(zipFileName);
+          //  if (File.Exists(zipFileName)) File.Delete(zipFileName);
 
             try
             {
@@ -151,6 +167,15 @@ SentrySdk.AddBreadcrumb(_client.Clientdeltazip, _client.ClientIP);
                 {
                     foreach (var x in _client.dataToSend)
                     {
+                        if (!File.Exists(x))
+                        {
+
+                            SentrySdk.CaptureMessage("Zip Err : " + x);
+                            continue;
+
+
+                        }
+
                         var relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
                         var fixedname = relativePath.Replace('\\', '/');
                         zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
@@ -160,6 +185,15 @@ SentrySdk.AddBreadcrumb(_client.Clientdeltazip, _client.ClientIP);
                     }
                     foreach (var y in _client.dataToAdd)
                     {
+                        if (!File.Exists(y))
+                        {
+
+                            SentrySdk.CaptureMessage("Zip Err : " + y);
+                            continue;
+
+
+                        }
+
                         var relativePath = y.Replace("Rust\\", string.Empty);
                         var fixedname = relativePath.Replace('\\', '/');
                         zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
