@@ -114,11 +114,15 @@ public class UpdateServerEntity
         UpdateClient curr = client;
         TickQueue();
 
+
+        FinalizeZip(client.ClientIP,zipFileName);
+
+        return;
         if (server.IsClientConnected(client.ClientIP))
             Task.Run(() => _sendNet(client.ClientIP, zipFileName));
         else
         {
-            SentrySdk.AddBreadcrumb("Client is not connected anymore to send Zip",client.ClientIP);
+         
             if (client.SignatureHash != string.Empty)
             {
                 if (!StoredDeltas.Contains(client.SignatureHash))
@@ -308,43 +312,17 @@ public class UpdateServerEntity
     }
     public async Task SendNetData(string ip, string zip, bool stored = false)
     {
-
-     
-       
-        var transaction = SentrySdk.StartTransaction(
-         "SendNetData",
-         ip,zip
-          );
-       
-
-
+        
         Puts("SendNetData...");
         var client = CurrentClients[ip];
         Dictionary<object, object> metadata = new Dictionary<object, object>();
-        // try
-        //{
-        //  metadata.Add(zip, zip);
         metadata.Add("1", "2");
-
-        //if (stored)
-        //{
-        //    while (!IsFileReady(zip))
-        //    {
-        //        Task.Delay(1500);
-        //       // Console.WriteLine("Waiting for file Ready");
-        //    }
-        //
-        //    Task.Delay(5000);
-        //
-        //}
-        var span = transaction.StartChild("SendAsync Filestream",ip);
+        
         using (var source = new FileStream(zip, FileMode.Open, FileAccess.Read,FileShare.Read, 4096, FileOptions.Asynchronous))
         {
             _ = await server.SendAsync(ip, source.Length, source, metadata).ConfigureAwait(false);
         }
-        span.Finish(); // Mark the span as finished
-        
-
+     
         if (stored)
         {
             FileLogger.CLog("  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
@@ -378,8 +356,48 @@ public class UpdateServerEntity
             File.Delete(x);
         }
 
-        transaction.Finish();
+       
     }
+
+    public static void FinalizeZip(string ip, string zip, bool stored = false)
+    {
+        var client = CurrentClients[ip];
+        if (stored)
+        {
+            FileLogger.CLog("  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
+            Puts("SendStoredDelta");
+        }
+        else
+        {
+            FileLogger.CLog("  UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length) + " to: " + ip, "Finished.txt");
+            Puts("Created New Update");
+        }
+
+
+        // Console.WriteLine("Alldone for client :" + ip);
+        // Console.WriteLine("UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length));
+        // Console.WriteLine("Cleaning up....");
+
+
+        if (client.SignatureHash != string.Empty)
+        {
+            //  Console.WriteLine("sighash not empty");
+            var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
+            if (!allfiles.Any(x => x.Name == client.SignatureHash + ".zip"))
+            {
+                File.Move(zip, DeltaStorage + "\\" + client.SignatureHash + ".zip");
+                // Console.WriteLine("File moved");
+            }
+        }
+
+        foreach (var x in client.filetoDelete)
+        {
+            File.Delete(x);
+        }
+    }
+
+
+
     static String BytesToString(long byteCount)
     {
         string[] suf = { "B", "KB", "MB", "GB", "TB", "PB", "EB" }; //Longs run out around EB
@@ -395,7 +413,7 @@ public class UpdateServerEntity
 
         try
         {
-            SyncResponse resp = server.SendAndWait(5000, ip, msg);
+            SyncResponse resp = server.SendAndWait(500, ip, msg);
         }
         catch
         {
@@ -437,7 +455,7 @@ public class UpdateServerEntity
 
         var filen = DeltaStorage + "\\" + client.SignatureHash + ".zip";
         // "STORE|true"
-        await sendingMsg("STORE|true", client.ClientIP, false).ConfigureAwait(false);
+        await _sendNet( client.ClientIP, filen, true).ConfigureAwait(false);
 
     }
 

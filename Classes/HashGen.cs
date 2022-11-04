@@ -35,7 +35,6 @@ namespace UpdateServer
                 return;
 
             }
-
             Console.WriteLine(string.Empty);
 
 
@@ -47,11 +46,10 @@ namespace UpdateServer
             timr.Start();
             int i = 0;
             int errs = 0;
-            var executingPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+            
             int skip = 0;
             List<string> errors = new List<string>();
             var allfiles = Directory.GetFiles(RustFolder.ToString(), "*", SearchOption.AllDirectories);
-            var test = Directory.GetFileSystemEntries(RustFolder.ToString(), "*", SearchOption.AllDirectories);
             files = allfiles.Count();
 
 
@@ -61,10 +59,10 @@ namespace UpdateServer
 
 
                 string hash;
-                string path;
+               
 
-                var wpath = x.Replace(RustFolder.ToString() + "\\", string.Empty);
-                path = wpath.Replace("\\", "/");
+                var path = GetRelativePath(x, RustFolder.FullName);
+               
                 hash = CalculateMD5(x);
 
 
@@ -73,22 +71,7 @@ namespace UpdateServer
                 {
                     FileHashes.Add(path, hash);
                 }
-                else
-                {
-                    errs++;
-
-                    errors.Add(x);
-                    try
-                    {
-                        Errs.Add(path, hash);
-                    }
-                    catch
-                    {
-
-                    }
-                }
-
-
+                
                 Console.WriteLine("Progress " + i + "  File:  " + hash + "|" + path);
                 i++;
 
@@ -116,6 +99,21 @@ namespace UpdateServer
 
             }
             return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+        }
+
+        string GetRelativePath(string filespec, string folder)
+        {
+            filespec = Path.GetFullPath(filespec);
+
+            Uri pathUri = new Uri(filespec);
+            // Folders must end in a slash
+            if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                folder += Path.DirectorySeparatorChar;
+            }
+            Uri folderUri = new Uri(folder);
+            return Uri.UnescapeDataString(
+                folderUri.MakeRelativeUri(pathUri).ToString().Replace('/', Path.DirectorySeparatorChar));
         }
     }
 }
