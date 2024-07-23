@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,16 +6,16 @@ namespace UpdateServer.Classes
 {
     public class OST
     {
-        int seconds;
-        Action MethodtoCall;
-        int Repeat;
-        TimerType _type;
-        private CancellationTokenSource ts = new CancellationTokenSource();
+        private TimerType _type;
         private CancellationToken ct;
+        private Action MethodtoCall;
+        private int Repeat;
+        private int seconds;
+        private CancellationTokenSource ts = new CancellationTokenSource();
 
         /// <summary>
-        /// The OneShotTimer. Set amount of time in Seconds, and give a Method to execute.
-        /// Method gets Executed after set amount of time.
+        ///     The OneShotTimer. Set amount of time in Seconds, and give a Method to execute.
+        ///     Method gets Executed after set amount of time.
         /// </summary>
         /// <param name="time"></param>
         /// <param name="method"></param>
@@ -30,8 +27,9 @@ namespace UpdateServer.Classes
 
             Task.Run(() => Execute());
         }
+
         /// <summary>
-        /// Starts a repeating timer for X times, in addition to the set interval for execution. 
+        ///     Starts a repeating timer for X times, in addition to the set interval for execution.
         /// </summary>
         /// <param name="time"></param>
         /// <param name="Repeats"></param>
@@ -44,9 +42,10 @@ namespace UpdateServer.Classes
             _type = TimerType.Repeated;
             Task.Run(() => Execute());
         }
+
         /// <summary>
-        /// Starts a Continous timer with unlimited repeats on set interval.
-        /// Use Cancellation Token to kill timer if needed.
+        ///     Starts a Continous timer with unlimited repeats on set interval.
+        ///     Use Cancellation Token to kill timer if needed.
         /// </summary>
         /// <param name="method"></param>
         /// <param name="intervals"></param>
@@ -60,7 +59,7 @@ namespace UpdateServer.Classes
         }
 
         /// <summary>
-        /// If destroying the continous timer is needed.
+        ///     If destroying the continous timer is needed.
         /// </summary>
         public void StopExecution()
         {
@@ -75,6 +74,7 @@ namespace UpdateServer.Classes
                     await Task.Delay(seconds);
                     MethodtoCall();
                     break;
+
                 case TimerType.Repeated:
                     int count = 0;
                 start:
@@ -84,12 +84,10 @@ namespace UpdateServer.Classes
                     if (count < Repeat)
                         goto start;
                     break;
+
                 case TimerType.Continous:
                 restart:
-                    if (ct.IsCancellationRequested)
-                    {
-                        break;
-                    }
+                    if (ct.IsCancellationRequested) break;
                     await Task.Delay(seconds, ct);
                     MethodtoCall();
                     goto restart;

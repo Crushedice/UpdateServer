@@ -1,17 +1,12 @@
-﻿using System;
-using System.Linq;
-
-
-namespace StringHelp
+﻿namespace StringHelp
 {
-    static class StringHelper
+    internal static class StringHelper
     {
         public static string AddQuotesIfRequired(string path)
         {
             return !string.IsNullOrWhiteSpace(path)
-                ? path.Contains(" ") && (!path.StartsWith("\"") && !path.EndsWith("\"")) ? "\"" + path + "\"" : path
+                ? path.Contains(" ") && !path.StartsWith("\"") && !path.EndsWith("\"") ? "\"" + path + "\"" : path
                 : string.Empty;
         }
     }
 }
-

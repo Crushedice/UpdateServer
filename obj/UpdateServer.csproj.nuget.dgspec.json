@@ -14,19 +14,14 @@
         "outputPath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\obj\\",
         "projectStyle": "PackageReference",
         "skipContentFileWrite": true,
-        "fallbackFolders": [
-          "C:\\Program Files\\DevExpress 22.1\\Components\\Offline Packages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\Crushed\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\DevExpress 22.1.config",
+          "S:\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net48"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "C:\\Program Files\\DevExpress 22.1\\Components\\System\\Components\\Packages": {},
           "https://api.nuget.org/v3/index.json": {},
           "https://www.nuget.org/api/v2/": {}
@@ -35,6 +30,11 @@
           "net48": {
             "projectReferences": {}
           }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
         }
       },
       "frameworks": {
@@ -48,14 +48,6 @@
               "target": "Package",
               "version": "[13.0.1, )"
             },
-            "Sentry": {
-              "target": "Package",
-              "version": "[3.21.0, )"
-            },
-            "Sentry.DiagnosticSource": {
-              "target": "Package",
-              "version": "[3.21.0, )"
-            },
             "WatsonTcp": {
               "target": "Package",
               "version": "[4.8.14.1, )"
@@ -65,6 +57,9 @@
       },
       "runtimes": {
         "win": {
+          "#import": []
+        },
+        "win-arm64": {
           "#import": []
         },
         "win-x64": {
