@@ -173,7 +173,7 @@ namespace UpdateServer.Classes
 
                         _client.dataToSend.Add(deltaFilePath);
                         _deltahash = CalculateMD5(deltaFilePath);
-                        File.Copy(deltaFilePath,UpdateServerEntity.SingleStorage+ _deltahash);
+                        File.Copy(deltaFilePath,UpdateServerEntity.SingleStorage + "\\" +_deltahash);
                         UpdateServerEntity.singleStoredDelta.Add(_sighash,_deltahash);
 
                     }

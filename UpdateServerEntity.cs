@@ -51,7 +51,7 @@ public class UpdateServerEntity
     public static Dictionary<string, UpdateClient> CurrentClients = new Dictionary<string, UpdateClient>();
 
     public static string DeltaStorage = "DeltaStorage";
-    public static string SingleStorage = "\\SingleStorage\\";
+    public static string SingleStorage = "SingleStorage";
 
     public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
 
@@ -102,8 +102,18 @@ public class UpdateServerEntity
         _sendNet = SendNetData;
         instance = this;
         FileHashes = Heart.FileHashes;
-        var ashes = File.ReadAllText("SingleDelta.json");
-        singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
+
+        if (!File.Exists("SingleDelta.json"))
+        {
+            singleStoredDelta.Add("0","0");
+            File.WriteAllText("SingleDelta.json",JsonConvert.SerializeObject(singleStoredDelta));
+        }
+        else
+        {
+            var ashes = File.ReadAllText("SingleDelta.json");
+            singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
+        }
+      
 
 
         foreach (string x in Directory.GetFiles(Rustfolderroot, "*", SearchOption.AllDirectories))
