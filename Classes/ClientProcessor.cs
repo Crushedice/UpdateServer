@@ -20,8 +20,6 @@ namespace UpdateServer.Classes
         private bool _running;
         private int NrInQueue;
 
-        
-
         private UpdateClient _client { get; }
 
         public ClientProcessor(UpdateClient user)
@@ -31,11 +29,18 @@ namespace UpdateServer.Classes
             _instanceRef = this;
         }
 
-        public async Task CreateZipFile()
+        private void send(string msg)
+        {
+
+            UpdateServerEntity.SendProgress(this._client._guid, msg);
+
+        }
+
+        private async Task CreateZipFile()
         {
             int retrycount = 0;
             // Create and open a new ZIP file
-            Task.Run(() => UpdateServerEntity.SendProgress(_client.ClientIP, "Making ZipFile"));
+            send( "Making ZipFile");
             int allitems = _client.dataToAdd.Count() + _client.dataToSend.Count();
             int itemcount = 0;
         starrt:
@@ -57,9 +62,8 @@ namespace UpdateServer.Classes
                             string fixedname = relativePath.Replace('\\', '/');
                             zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
                             itemcount++;
-                            Task.Run(() =>
-                                UpdateServerEntity.SendProgress(_client.ClientIP,
-                                    $"Packing Update: {itemcount} / {allitems}"));
+                           
+                            send($"Packing Update: {itemcount} / {allitems}");
                         }
                         catch (Exception e)
                         {
@@ -76,9 +80,8 @@ namespace UpdateServer.Classes
                             string fixedname = relativePath.Replace('\\', '/');
                             zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
                             itemcount++;
-                            Task.Run(() =>
-                                UpdateServerEntity.SendProgress(_client.ClientIP,
-                                    $"Packing Update: {itemcount} / {allitems}"));
+                            
+                            send($"Packing Update: {itemcount} / {allitems}");
                         }
                         catch (Exception r)
                         {
@@ -97,7 +100,7 @@ namespace UpdateServer.Classes
                 goto retrying;
             }
 
-            Task.Run(() => SendZipFile(zipFileName));
+            SendZipFile(zipFileName);
 
             return;
 
@@ -117,19 +120,33 @@ namespace UpdateServer.Classes
 
         public void Notify()
         {
-            Task.Run(() => UpdateServerEntity.SendProgress(_client.ClientIP, "Waiting in Queue...."));
+            send("Waiting in Queue....");
         }
 
         public void StartupThisOne()
         {
             _running = true;
-            Task.Run(() => CreateDeltaforClient());
+            PrepairClient();
         }
 
+        private void PrepairClient()
+        {
+            foreach (var t in _client.MatchedDeltas)
+            {
+                var deltapath = UpdateServerEntity.DeltaStorage + "\\" + t.Key;
+                var destpath = _client.ClientFolder + t.Value; 
+                string deltaOutputDirectory = Path.GetDirectoryName(destpath);
+                if (!Directory.Exists(deltaOutputDirectory))
+                    Directory.CreateDirectory(deltaOutputDirectory);
+
+                File.Copy(deltapath,destpath);
+            }
+            CreateDeltaforClient();
+        }
         private async void CreateDeltaforClient()
         {
             //Console.WriteLine("creating delta for client....");
-            Task.Run(() => UpdateServerEntity.SendProgress(_client.ClientIP, "Starting Delta Creation"));
+             send("Starting Delta Creation");
 
             string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
             int allc = allDeltas.Count();
@@ -140,24 +157,15 @@ namespace UpdateServer.Classes
 
             foreach (string x in allDeltas)
             {
+                string relativePath = x.Replace(_client.ClientFolder, string.Empty);
 
-                if (!x.Contains(".zip"))
-                {
-                    _sighash = await CalculateMD5(x);
-                    if (Heart.singleStoredDelta.ContainsKey(_sighash))
-                    {
-                        Console.WriteLine("Server found matching stored sighash! WOOP");
+                string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
+                                     relativePath.Replace(".octosig", string.Empty);
 
-                    }
-                    else
-                    {
-                        if (UpdateServerEntity._debug)
-                        {
-                            Console.WriteLine($"{_sighash} was not found in Storage. Sad.");
-                        }
 
-                    } 
-                }
+                _sighash = _client.missmatchedFilehashes.Keys.First(f => f == newFilePath);
+
+                var OrigPath = _client.missmatchedFilehashes[_sighash];
 
                 try
                 {
@@ -165,10 +173,7 @@ namespace UpdateServer.Classes
                     {
                         _client.filetoDelete.Add(x);
                         string filename = Path.GetFileName(x);
-                        string relativePath = x.Replace(_client.ClientFolder, string.Empty);
-
-                        string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
-                                             relativePath.Replace(".octosig", string.Empty);
+                     
                         if (!File.Exists(newFilePath)) continue; 
                         deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
                         string deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
@@ -192,40 +197,34 @@ namespace UpdateServer.Classes
                 }
                 catch (Exception e)
                 {
-                    UpdateServerEntity.SendProgress(_client.ClientIP, $"Error In creating Delta for {x}");
+                    send($"Error In creating Delta for {x}");
                     FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
                     Console.WriteLine("  Error in Create Delta:  " + e.Message, "Errors.txt");
                 }
 
-                if (File.Exists(deltaFilePath))
-                {
+                
                     try
                     {
                         _deltahash = await CalculateMD5(deltaFilePath);
-                        File.Copy(deltaFilePath, UpdateServerEntity.SingleStorage + "\\" + _deltahash);
-                         Heart.addsingledelta(_sighash, _deltahash);
+                        File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
+                        var nee = new Dictionary<string, string>();
+                        nee.Add(_deltahash,OrigPath);
+                        UpdateServerEntity.DeltaFileStorage.Add(_sighash,nee );
                     }
                     catch (Exception e)
                     {
                         if (UpdateServerEntity._debug)
                             Console.WriteLine("Md5 For Delta Failed  " + e.InnerException);
                     }
-                }
-                else
-                {
-
-                    if (UpdateServerEntity._debug)
-                        Console.WriteLine("Deltafile for Md5 not found??");
-
-                }
+                
 
                 prg++;
-                UpdateServerEntity.SendProgress(_client.ClientIP, $"Delta Progress: {prg} / {allc}");
+                send($"Delta Progress: {prg} / {allc}");
                 UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
             }
 
             // await Task.WhenAll(tasks).ConfigureAwait(false);
-            Task.Run(() => Heart.savesinglefile());
+            Heart.savesinglefile();
             EndThisOne();
 
             //Console.WriteLine("all threads Exited.  Sending data");
@@ -263,14 +262,14 @@ namespace UpdateServer.Classes
 
         private async Task SendZipFile(string zip, bool stored = false)
         {
-            var metadata = new Dictionary<object, object>();
+            var metadata = new Dictionary<string, object>();
             metadata.Add("1", "2");
 
-            using (FileStream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
+            using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
                        FileOptions.Asynchronous))
             {
-                await UpdateServerEntity.server.SendAsync(_client.ClientIP, source.Length, source, metadata)
-                    .ConfigureAwait(false);
+               
+                await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source,metadata);
             }
 
             UpdateServerEntity.EndCall(_client, this, zip);

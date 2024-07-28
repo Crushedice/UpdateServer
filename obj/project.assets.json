@@ -217,18 +217,18 @@
           }
         }
       },
-      "WatsonTcp/4.8.14.14": {
+      "WatsonTcp/6.0.6": {
         "type": "package",
         "dependencies": {
-          "Newtonsoft.Json": "13.0.1"
+          "System.Text.Json": "7.0.0"
         },
         "compile": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         }
@@ -450,18 +450,18 @@
           }
         }
       },
-      "WatsonTcp/4.8.14.14": {
+      "WatsonTcp/6.0.6": {
         "type": "package",
         "dependencies": {
-          "Newtonsoft.Json": "13.0.1"
+          "System.Text.Json": "7.0.0"
         },
         "compile": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         }
@@ -683,18 +683,18 @@
           }
         }
       },
-      "WatsonTcp/4.8.14.14": {
+      "WatsonTcp/6.0.6": {
         "type": "package",
         "dependencies": {
-          "Newtonsoft.Json": "13.0.1"
+          "System.Text.Json": "7.0.0"
         },
         "compile": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         }
@@ -916,18 +916,18 @@
           }
         }
       },
-      "WatsonTcp/4.8.14.14": {
+      "WatsonTcp/6.0.6": {
         "type": "package",
         "dependencies": {
-          "Newtonsoft.Json": "13.0.1"
+          "System.Text.Json": "7.0.0"
         },
         "compile": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         }
@@ -1149,18 +1149,18 @@
           }
         }
       },
-      "WatsonTcp/4.8.14.14": {
+      "WatsonTcp/6.0.6": {
         "type": "package",
         "dependencies": {
-          "Newtonsoft.Json": "13.0.1"
+          "System.Text.Json": "7.0.0"
         },
         "compile": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net472/WatsonTcp.dll": {
+          "lib/net48/WatsonTcp.dll": {
             "related": ".xml"
           }
         }
@@ -1581,30 +1581,26 @@
         "version.txt"
       ]
     },
-    "WatsonTcp/4.8.14.14": {
-      "sha512": "ANq8kEqFcyvgxq/CrKJAFwxDS01T0U9t+H4f7WVrRjf0XMw8aaRRd1WQi5lNS/8W9gf9FOUVLHSY0Gfsn6vN6g==",
+    "WatsonTcp/6.0.6": {
+      "sha512": "DACsCnAfKkg4XKCJ6skVKCGxw7BFyMiNWkbQjGAFy2UDiSxDsLIrBErSufchGvNpFvMeOwJljo92oXa8dIdNTw==",
       "type": "package",
-      "path": "watsontcp/4.8.14.14",
+      "path": "watsontcp/6.0.6",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "LICENSE.md",
-        "lib/net461/WatsonTcp.dll",
-        "lib/net461/WatsonTcp.xml",
-        "lib/net472/WatsonTcp.dll",
-        "lib/net472/WatsonTcp.xml",
-        "lib/net5.0/WatsonTcp.dll",
-        "lib/net5.0/WatsonTcp.xml",
+        "lib/net462/WatsonTcp.dll",
+        "lib/net462/WatsonTcp.xml",
+        "lib/net48/WatsonTcp.dll",
+        "lib/net48/WatsonTcp.xml",
         "lib/net6.0/WatsonTcp.dll",
         "lib/net6.0/WatsonTcp.xml",
-        "lib/netcoreapp3.1/WatsonTcp.dll",
-        "lib/netcoreapp3.1/WatsonTcp.xml",
-        "lib/netstandard2.0/WatsonTcp.dll",
-        "lib/netstandard2.0/WatsonTcp.xml",
-        "lib/netstandard2.1/WatsonTcp.dll",
-        "lib/netstandard2.1/WatsonTcp.xml",
+        "lib/net7.0/WatsonTcp.dll",
+        "lib/net7.0/WatsonTcp.xml",
+        "lib/net8.0/WatsonTcp.dll",
+        "lib/net8.0/WatsonTcp.xml",
         "watson.png",
-        "watsontcp.4.8.14.14.nupkg.sha512",
+        "watsontcp.6.0.6.nupkg.sha512",
         "watsontcp.nuspec"
       ]
     }
@@ -1613,11 +1609,12 @@
     ".NETFramework,Version=v4.8": [
       "FastRsyncNet >= 2.4.0",
       "Newtonsoft.Json >= 13.0.3",
-      "WatsonTcp >= 4.8.14.14"
+      "WatsonTcp >= 6.0.6"
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Crushed\\.nuget\\packages\\": {}
+    "C:\\Users\\Crushed\\.nuget\\packages\\": {},
+    "C:\\Program Files\\DevExpress 24.1\\Components\\Offline Packages": {}
   },
   "project": {
     "version": "1.0.0",
@@ -1629,14 +1626,19 @@
       "outputPath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\obj\\",
       "projectStyle": "PackageReference",
       "skipContentFileWrite": true,
+      "fallbackFolders": [
+        "C:\\Program Files\\DevExpress 24.1\\Components\\Offline Packages"
+      ],
       "configFilePaths": [
         "S:\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\DevExpress 24.1.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "net48"
       ],
       "sources": {
+        "C:\\Program Files\\DevExpress 24.1\\Components\\System\\Components\\Packages": {},
         "https://api.nuget.org/v3/index.json": {},
         "https://www.nuget.org/api/v2/": {}
       },
@@ -1664,7 +1666,7 @@
           },
           "WatsonTcp": {
             "target": "Package",
-            "version": "[4.8.14.14, )"
+            "version": "[6.0.6, )"
           }
         }
       }

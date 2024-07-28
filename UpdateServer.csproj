@@ -147,7 +147,7 @@
       <Version>13.0.3</Version>
     </PackageReference>
     <PackageReference Include="WatsonTcp">
-      <Version>4.8.14.14</Version>
+      <Version>6.0.6</Version>
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
