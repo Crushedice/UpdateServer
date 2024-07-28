@@ -13,20 +13,30 @@ namespace UpdateServer
         public delegate void sendmsg(string inp, string ip, bool hashes);
 
         public static Dictionary<string, string> CurUpdaters = new Dictionary<string, string>();
+
         public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
 
-        public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
-        //  public static Dictionary<string, string> 
-
         public static string Hashes = string.Empty;
+
+        //  public static Dictionary<string, string>
         public static TextBox Inputbox;
+
         public static RichTextBox ProgressOvLk;
+
         public static sendmsg sendmessage;
+
+        public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
+
         public static List<string> ThreadList = new List<string>();
+
         public static ListBox UpdaterGrid;
+
         public static Label VersionLabel;
+
         public static string Vversion = string.Empty;
+
         private static Thread Server;
+
         public UpdateServerEntity _server;
 
         public Heart()
@@ -49,22 +59,10 @@ namespace UpdateServer
             beat();
         }
 
-
-        public static void savesinglefile()
-        {
-
-            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta, Formatting.Indented));
-
-        }
-
         public static void addsingledelta(string a, string b)
         {
-
-
-            singleStoredDelta.Add(a,b);
-
+            singleStoredDelta.Add(a, b);
         }
-
 
         public static void PoolMod(string thrd, bool add)
         {
@@ -108,6 +106,11 @@ namespace UpdateServer
             }
         }
 
+        public static void savesinglefile()
+        {
+            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta, Formatting.Indented));
+        }
+
         public static void ShowPoolThreads()
         {
             ProgressOvLk.Clear();
@@ -133,13 +136,13 @@ namespace UpdateServer
 
             if (!File.Exists("SingleDelta.json"))
             {
-                Heart.singleStoredDelta.Add("0", "0");
-                File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(Heart.singleStoredDelta));
+                singleStoredDelta.Add("0", "0");
+                File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta));
             }
             else
             {
-                var ashes = File.ReadAllText("SingleDelta.json");
-                Heart.singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
+                string ashes = File.ReadAllText("SingleDelta.json");
+                singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
             }
 
             Console.WriteLine("Heart Started. Starting update server...");
