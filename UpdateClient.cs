@@ -11,6 +11,8 @@ namespace UpdateServer
         public List<string> dataToSend = new List<string>();
         public Dictionary<string, string> filedata = new Dictionary<string, string>();
         public List<string> filetoDelete = new List<string>();
+		public Dictionary<string, string> missmatchedFilehashes = new Dictionary<string, string>();
+		
         public string SignatureHash;
 
         public UpdateClient()

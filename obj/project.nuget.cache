@@ -1,16 +1,22 @@
 {
   "version": 2,
-  "dgSpecHash": "b2UCJ54d9us=",
+  "dgSpecHash": "ybyIEEgYCtE=",
   "success": true,
   "projectFilePath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\Crushed\\.nuget\\packages\\fastrsyncnet\\2.3.1\\fastrsyncnet.2.3.1.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\newtonsoft.json\\13.0.1\\newtonsoft.json.13.0.1.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\system.data.hashfunction.core\\2.0.0\\system.data.hashfunction.core.2.0.0.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\system.data.hashfunction.interfaces\\2.0.0\\system.data.hashfunction.interfaces.2.0.0.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\system.data.hashfunction.xxhash\\2.0.0\\system.data.hashfunction.xxhash.2.0.0.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\system.runtime.numerics\\4.3.0\\system.runtime.numerics.4.3.0.nupkg.sha512",
-    "C:\\Users\\Crushed\\.nuget\\packages\\watsontcp\\4.8.14.1\\watsontcp.4.8.14.1.nupkg.sha512"
+    "C:\\Users\\Crushed\\.nuget\\packages\\fastrsyncnet\\2.4.0\\fastrsyncnet.2.4.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\8.0.0\\microsoft.bcl.asyncinterfaces.8.0.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\newtonsoft.json\\13.0.3\\newtonsoft.json.13.0.3.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.buffers\\4.5.1\\system.buffers.4.5.1.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.io.hashing\\8.0.0\\system.io.hashing.8.0.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.text.json\\8.0.0\\system.text.json.8.0.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.threading.tasks.extensions\\4.5.4\\system.threading.tasks.extensions.4.5.4.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\system.valuetuple\\4.5.0\\system.valuetuple.4.5.0.nupkg.sha512",
+    "C:\\Users\\Crushed\\.nuget\\packages\\watsontcp\\4.8.14.14\\watsontcp.4.8.14.14.nupkg.sha512"
   ],
   "logs": []
 }

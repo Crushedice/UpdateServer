@@ -1,6 +1,7 @@
 ﻿using FastRsync.Core;
 using FastRsync.Delta;
 using FastRsync.Signature;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -62,6 +63,7 @@ namespace UpdateServer.Classes
                         }
                         catch (Exception e)
                         {
+                            Console.WriteLine(e.Message, "Errors.txt");
                             FileLogger.CLog(e.Message, "Errors.txt");
                         }
 
@@ -80,14 +82,17 @@ namespace UpdateServer.Classes
                         }
                         catch (Exception r)
                         {
+                            Console.WriteLine(r.Message, "Errors.txt");
                             FileLogger.CLog(r.Message, "Errors.txt");
                         }
+                    
                 }
 
                 _client.filetoDelete.Add(zipFileName);
             }
             catch (Exception e)
             {
+                Console.WriteLine("  Error in pack zip:  " + e.Message, "Errors.txt");
                 FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
                 goto retrying;
             }
@@ -129,17 +134,29 @@ namespace UpdateServer.Classes
             string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
             int allc = allDeltas.Count();
             int prg = 0;
-            string _sighash;
-            string _deltahash;
+            string _sighash = "";
+            string _deltahash = "";
+            string deltaFilePath = "";
 
             foreach (string x in allDeltas)
             {
 
-                 _sighash = CalculateMD5(x);
-                if (UpdateServerEntity.singleStoredDelta.ContainsKey(_sighash))
+                if (!x.Contains(".zip"))
                 {
-                    Console.WriteLine("Server found matching stored sighash! WOOP");
+                    _sighash = await CalculateMD5(x);
+                    if (Heart.singleStoredDelta.ContainsKey(_sighash))
+                    {
+                        Console.WriteLine("Server found matching stored sighash! WOOP");
 
+                    }
+                    else
+                    {
+                        if (UpdateServerEntity._debug)
+                        {
+                            Console.WriteLine($"{_sighash} was not found in Storage. Sad.");
+                        }
+
+                    } 
                 }
 
                 try
@@ -152,36 +169,54 @@ namespace UpdateServer.Classes
 
                         string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
                                              relativePath.Replace(".octosig", string.Empty);
-                        if (!File.Exists(newFilePath)) continue;
-                        string deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
+                        if (!File.Exists(newFilePath)) continue; 
+                        deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
                         string deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
                         if (!Directory.Exists(deltaOutputDirectory))
                             Directory.CreateDirectory(deltaOutputDirectory);
                         DeltaBuilder deltaBuilder = new DeltaBuilder();
                         using (FileStream newFileStream =
-                               new FileStream(newFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                               new FileStream(newFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                         using (FileStream signatureStream =
-                               new FileStream(x, FileMode.Open, FileAccess.Read, FileShare.Read))
+                               new FileStream(x, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                         using (FileStream deltaStream = new FileStream(deltaFilePath, FileMode.Create, FileAccess.Write,
-                                   FileShare.Read))
+                                   FileShare.ReadWrite))
                         {
                             await deltaBuilder.BuildDeltaAsync(newFileStream,
                                     new SignatureReader(signatureStream, null),
                                     new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)))
                                 .ConfigureAwait(false);
                         }
-
                         _client.dataToSend.Add(deltaFilePath);
-                        _deltahash = CalculateMD5(deltaFilePath);
-                        File.Copy(deltaFilePath,UpdateServerEntity.SingleStorage + "\\" +_deltahash);
-                        UpdateServerEntity.singleStoredDelta.Add(_sighash,_deltahash);
-
                     }
                 }
                 catch (Exception e)
                 {
                     UpdateServerEntity.SendProgress(_client.ClientIP, $"Error In creating Delta for {x}");
                     FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
+                    Console.WriteLine("  Error in Create Delta:  " + e.Message, "Errors.txt");
+                }
+
+                if (File.Exists(deltaFilePath))
+                {
+                    try
+                    {
+                        _deltahash = await CalculateMD5(deltaFilePath);
+                        File.Copy(deltaFilePath, UpdateServerEntity.SingleStorage + "\\" + _deltahash);
+                         Heart.addsingledelta(_sighash, _deltahash);
+                    }
+                    catch (Exception e)
+                    {
+                        if (UpdateServerEntity._debug)
+                            Console.WriteLine("Md5 For Delta Failed  " + e.InnerException);
+                    }
+                }
+                else
+                {
+
+                    if (UpdateServerEntity._debug)
+                        Console.WriteLine("Deltafile for Md5 not found??");
+
                 }
 
                 prg++;
@@ -190,7 +225,7 @@ namespace UpdateServer.Classes
             }
 
             // await Task.WhenAll(tasks).ConfigureAwait(false);
-
+            Task.Run(() => Heart.savesinglefile());
             EndThisOne();
 
             //Console.WriteLine("all threads Exited.  Sending data");
@@ -202,17 +237,17 @@ namespace UpdateServer.Classes
 
             _ = CreateZipFile();
         }
-        private static string CalculateMD5(string filename)
+        private Task<string> CalculateMD5(string filename)
         {
             byte[] hash;
-            using (FileStream inputStream = File.OpenRead(filename))
+            using (FileStream inputStream = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 MD5 md5 = MD5.Create();
 
                 hash = md5.ComputeHash(inputStream);
             }
 
-            return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+            return Task.FromResult(BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant());
         }
 
         private string GetRelativePath(string filespec, string folder)

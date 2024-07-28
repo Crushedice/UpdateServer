@@ -59,7 +59,7 @@ public class UpdateServerEntity
     /// singleStoredDelta for matching hash on octosigs to octodeltas for client
     /// Keys = Octosig Values =  Octodelta (Which is also the filename)
     /// </summary>
-    public static  Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
+    
 
     public static UpdateServerEntity instance;
 
@@ -103,16 +103,6 @@ public class UpdateServerEntity
         instance = this;
         FileHashes = Heart.FileHashes;
 
-        if (!File.Exists("SingleDelta.json"))
-        {
-            singleStoredDelta.Add("0","0");
-            File.WriteAllText("SingleDelta.json",JsonConvert.SerializeObject(singleStoredDelta));
-        }
-        else
-        {
-            var ashes = File.ReadAllText("SingleDelta.json");
-            singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
-        }
       
 
 
@@ -254,7 +244,7 @@ public class UpdateServerEntity
             //  Console.WriteLine("sighash not empty");
             var allfiles = new DirectoryInfo(DeltaStorage).GetFiles();
             if (!allfiles.Any(x => x.Name == client.SignatureHash + ".zip"))
-                File.Move(zip, DeltaStorage + "\\" + client.SignatureHash + ".zip");
+                File.Copy(zip, DeltaStorage + "\\" + client.SignatureHash + ".zip");
             // Console.WriteLine("File moved");
         }
 
@@ -299,7 +289,7 @@ public class UpdateServerEntity
         try
         {
             using (FileStream inputStream = File.Open(StringHelper.AddQuotesIfRequired(filename), FileMode.Open,
-                       FileAccess.Read, FileShare.Read))
+                       FileAccess.Read, FileShare.ReadWrite))
             {
                 return inputStream.Length > 0;
             }
@@ -340,7 +330,7 @@ public class UpdateServerEntity
         }
         catch
         {
-            Puts("SendProgress Error");
+           // Puts("SendProgress Error");
         }
     }
 
@@ -348,7 +338,7 @@ public class UpdateServerEntity
     {
         Puts("Waitqueue Count: " + WaitingClients.Count());
 
-        File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta, Formatting.Indented));
+        File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(Heart.singleStoredDelta, Formatting.Indented));
 
         Puts("Current Processors: " + Occupants.Count());
 
@@ -518,14 +508,34 @@ public class UpdateServerEntity
                  where v.tcpipport == args.IpPort
                  select v;
 
+        var result = Occupants.First(x => x.tcpipport == args.IpPort);
+
+        if (result!=null)
+        {
+            Occupants.Remove(result);
+            Puts("ClientDisconnect recognised . Removed.");
+            TickQueue();
+
+            CurrentClients.Remove(args.IpPort);
+        }
+        else
+        {
+            Puts("ClientDisconnect linq result is null");
+        }
+
         if (ox != null)
         {
             Occupants.Remove(ox.First());
 
             TickQueue();
+            CurrentClients.Remove(args.IpPort);
+        }
+        else
+        {
+            Puts("ClientDisconnect linq result is null");
         }
 
-        CurrentClients.Remove(args.IpPort);
+        
     }
 
     private static void DeleteOldFiles()

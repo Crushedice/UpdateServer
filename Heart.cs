@@ -14,7 +14,9 @@ namespace UpdateServer
 
         public static Dictionary<string, string> CurUpdaters = new Dictionary<string, string>();
         public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
-      //  public static Dictionary<string, string> 
+
+        public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
+        //  public static Dictionary<string, string> 
 
         public static string Hashes = string.Empty;
         public static TextBox Inputbox;
@@ -46,6 +48,21 @@ namespace UpdateServer
 
             beat();
         }
+
+
+        public static void savesinglefile()
+        {
+
+            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta, Formatting.Indented));
+
+        }
+
+        public static void addsingledelta(string a, string b)
+        {
+            singleStoredDelta.Add(a,b);
+
+        }
+
 
         public static void PoolMod(string thrd, bool add)
         {
@@ -110,6 +127,17 @@ namespace UpdateServer
             {
                 Hashes = File.ReadAllText("Hashes.json");
                 FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+            }
+
+            if (!File.Exists("SingleDelta.json"))
+            {
+                Heart.singleStoredDelta.Add("0", "0");
+                File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(Heart.singleStoredDelta));
+            }
+            else
+            {
+                var ashes = File.ReadAllText("SingleDelta.json");
+                Heart.singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
             }
 
             Console.WriteLine("Heart Started. Starting update server...");
