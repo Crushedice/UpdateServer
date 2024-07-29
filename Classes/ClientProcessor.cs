@@ -51,6 +51,13 @@ namespace UpdateServer.Classes
             return Task.FromResult(BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant());
         }
 
+        private string FixPath(string path)
+        {
+            char[] separators = { '\\','/'};
+            int index = path.IndexOfAny(separators);        
+            path = path[index].ToString() == "\\" ? path.Replace('/', '\\') : path.Replace('\\', '/');
+            return path;
+        }
         private async void CreateDeltaforClient()
         {
             //Console.WriteLine("creating delta for client....");
@@ -69,10 +76,11 @@ namespace UpdateServer.Classes
 
                 string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
                                      relativePath.Replace(".octosig", string.Empty);
+                string origfile= FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\",@"\").Replace(@"\Rust\",string.Empty);
 
-                _sighash = _client.missmatchedFilehashes.First(f => f.Key == newFilePath).Value;
+                _sighash = _client.missmatchedFilehashes.First(f => f.Key == origfile).Value;
 
-                string OrigPath = _client.missmatchedFilehashes[_sighash];
+                string OrigPath = origfile;//_client.missmatchedFilehashes[_sighash];
 
                 try
                 {
@@ -110,19 +118,18 @@ namespace UpdateServer.Classes
                     Console.WriteLine("  Error in Create Delta:  " + e.Message, "Errors.txt");
                 }
 
-                try
-                {
-                    _deltahash = await CalculateMD5(deltaFilePath);
-                    File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
+               
+                _deltahash = await CalculateMD5(deltaFilePath);
+
+                    if(!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
+                        File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
+
                     var nee = new Dictionary<string, string>();
                     nee.Add(_deltahash, OrigPath);
+                    if(!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
                     UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
-                }
-                catch (Exception e)
-                {
-                    if (UpdateServerEntity._debug)
-                        Console.WriteLine("Md5 For Delta Failed  " + e.InnerException);
-                }
+                
+                
 
                 prg++;
                 send($"Delta Progress: {prg} / {allc}");
@@ -130,13 +137,13 @@ namespace UpdateServer.Classes
             }
 
             // await Task.WhenAll(tasks).ConfigureAwait(false);
-            Heart.savesinglefile();
+           
             EndThisOne();
 
             //Console.WriteLine("all threads Exited.  Sending data");
         }
 
-        private async Task CreateZipFile(bool additionalfiles = false)
+        public async Task CreateZipFile(bool additionalfiles = false)
         {
             int retrycount = 0;
             // Create and open a new ZIP file
@@ -249,12 +256,20 @@ namespace UpdateServer.Classes
             foreach (var t in _client.MatchedDeltas)
             {
                 string deltapath = UpdateServerEntity.DeltaStorage + "\\" + t.Key;
-                string destpath = _client.ClientFolder + t.Value;
+                string destpath = _client.ClientFolder + "\\Rust\\"+ t.Value+".octodelta";
                 string deltaOutputDirectory = Path.GetDirectoryName(destpath);
                 if (!Directory.Exists(deltaOutputDirectory))
                     Directory.CreateDirectory(deltaOutputDirectory);
 
                 File.Copy(deltapath, destpath);
+                _client.dataToSend.Add(destpath);
+
+            }
+
+            if (_client.MatchedDeltas.Count >= _client.missmatchedFilehashes.Count)
+            {
+                EndThisOne();
+                return;
             }
 
             CreateDeltaforClient();

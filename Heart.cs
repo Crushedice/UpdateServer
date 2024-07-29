@@ -106,11 +106,6 @@ namespace UpdateServer
             }
         }
 
-        public static void savesinglefile()
-        {
-            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta, Formatting.Indented));
-        }
-
         public static void ShowPoolThreads()
         {
             ProgressOvLk.Clear();
@@ -134,16 +129,8 @@ namespace UpdateServer
                 FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
             }
 
-            if (!File.Exists("SingleDelta.json"))
-            {
-                singleStoredDelta.Add("0", "0");
-                File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(singleStoredDelta));
-            }
-            else
-            {
-                string ashes = File.ReadAllText("SingleDelta.json");
-                singleStoredDelta = JsonConvert.DeserializeObject<Dictionary<string, string>>(ashes);
-            }
+           
+           
 
             Console.WriteLine("Heart Started. Starting update server...");
             _server = new UpdateServerEntity();

@@ -59,7 +59,7 @@ public class UpdateServerEntity
 
     private static List<ClientProcessor> Occupants = new List<ClientProcessor>();
 
-    private static string serverIp = "127.0.0.1";
+    private static string serverIp = "51.91.214.177";
 
     private static int serverPort = 9090;
 
@@ -80,6 +80,11 @@ public class UpdateServerEntity
             string trimmedpath = x.Replace(Path.GetDirectoryName(x), "");
             ClientFiles.Add(trimmedpath);
         }
+
+        if(File.Exists("SingleDelta.json"))
+            DeltaFileStorage = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string,string>>>(File.ReadAllText("SingleDelta.json"));
+
+        Puts($"DeltaStorage has {DeltaFileStorage.Count} Files");
 
         Start();
     }
@@ -312,13 +317,16 @@ public class UpdateServerEntity
         {
 
 
-           
+                
                 string thisone = x.Split(Path.DirectorySeparatorChar).Last();
+
+                if (thisone.Contains(".")) return;
+    
                 Guid guid = Guid.Parse(thisone);
 
                 // Console.WriteLine("Checking User " + thisone);
 
-                Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
+               // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
                 if (!server.IsClientConnected(guid))
                     try
                     {
@@ -397,9 +405,7 @@ public class UpdateServerEntity
 
     private static void PackAdditionalFiles(UpdateClient client)
     {
-
-
-
+            CreateZipFile(client,true);
 
     }
 
@@ -432,7 +438,121 @@ public class UpdateServerEntity
         server.Start();
         Console.WriteLine("Server Started.");
     }
+        private static async Task CreateZipFile(UpdateClient _client ,bool additionalfiles = false)
+        {
+            int retrycount = 0;
+            // Create and open a new ZIP file
+           
+            int allitems = _client.dataToSend.Count();
+            string zipFileName = _client.Clientdeltazip;
+            string zipFileName2 = "additionalfiles.zip" ;
+            if (File.Exists(zipFileName2)) File.Delete(zipFileName2);
+            string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
+            int itemcount = 0;
+
+
+            if (additionalfiles)
+            {
+                using (ZipArchive zip = ZipFile.Open(zipFileName2, ZipArchiveMode.Create))
+                {
+                    foreach (string y in _client.dataToAdd)
+                    {
+                         if (!File.Exists(y)) continue;
+
+                         string relativePath = y.Replace("Rust\\", string.Empty);
+                         string fixedname = relativePath.Replace('\\', '/');
+                         zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
+                         itemcount++;
+
+                        
+
+                    }
+
+                }
+                _client.filetoDelete.Add(zipFileName2);
+                SendZipFile(_client,zipFileName2,true);
+
+                return;
+            }
+        starrt:
+
+            try
+            {
+                using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
+                {
+                    foreach (string x in _client.dataToSend)
+                        try
+                        {
+                            if (!File.Exists(x)) continue;
+                            string relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
+                            string fixedname = relativePath.Replace('\\', '/');
+                            zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
+                            itemcount++;
+
+                          
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.Message, "Errors.txt");
+                            FileLogger.CLog(e.Message, "Errors.txt");
+                        }
+
+                   
+                }
+
+                _client.filetoDelete.Add(zipFileName);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("  Error in pack zip:  " + e.Message, "Errors.txt");
+                FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
+                goto retrying;
+            }
+
+            SendZipFile(_client,zipFileName);
+
+            return;
+
+        retrying:
+
+            if (retrycount > 5)
+            {
+                //    FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm") + "  abort of packing zip after  " + retrycount + " Retry ", "Finished.txt");
+               
+                return;
+            }
+
+            await Task.Delay(10000);
+            retrycount++;
+            goto starrt;
+        }
+    private static async Task SendZipFile(UpdateClient _client ,string zip, bool stored = false)
+    {
+
+        if (stored)
+        {
+            using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                       FileOptions.Asynchronous))
+            {
+                await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+            }
+
+          
+
+        }
+        else
+        {
+            
+        var metadata = new Dictionary<string, object>();
+        metadata.Add("1", "2");
+        using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                   FileOptions.Asynchronous))
+        {
+            await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
+        }
+        }
+    }
     private static void StreamReceived(object sender, StreamReceivedEventArgs args)
     {
         Puts("Stream received");
@@ -503,7 +623,17 @@ public class UpdateServerEntity
 
             var sendb = _client.GetTrimmedList();
 
+            if (_client.MatchedDeltas.Count() >= _client.missmatchedFilehashes.Count())
+            {
+                SendProgress(_client._guid, "Enqueue for processing...");
+                ClientProcessor newprocessor = new ClientProcessor(_client);
+                WaitingClients.Enqueue(newprocessor);
+                TickQueue();
+            }
+
             return new SyncResponse(req, InputDictionary(sendb), _client.MatchedDeltas.Count().ToString());
+
+
         }
 
         return new SyncResponse(req, "null");

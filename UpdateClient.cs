@@ -45,7 +45,7 @@ namespace UpdateServer
         public Dictionary<string, string> GetTrimmedList()
         {
             foreach (var m in missmatchedFilehashes)
-                if (UpdateServerEntity.DeltaFileStorage.TryGetValue(m.Key, out var kk))
+                if (UpdateServerEntity.DeltaFileStorage.TryGetValue(m.Value, out var kk))
                     MatchedDeltas.Add(kk.Keys.First(), kk.Values.First());
                 else
                     TrimmedFileHashes.Add(m.Key, m.Value);
