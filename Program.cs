@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace UpdateServer
@@ -18,6 +19,7 @@ namespace UpdateServer
 
     internal static class Program
     {
+        [DebuggerStepThrough]
         [STAThread]
         private static void Main(string[] args)
         {

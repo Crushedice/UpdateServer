@@ -32,14 +32,9 @@ namespace UpdateServer
             Clientdeltazip = deltazip;
         }
 
-        public void AddMissMatchFilelist(Dictionary<string, object> nes)
+        public void AddMissMatchFilelist(Dictionary<string, string> nes)
         {
-            foreach (var x in nes)
-            {
-                string K = x.Key;
-                string V = x.Value.ToString();
-                missmatchedFilehashes.Add(K, V);
-            }
+            missmatchedFilehashes = nes;
         }
 
         public Dictionary<string, string> GetTrimmedList()

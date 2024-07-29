@@ -73,7 +73,7 @@ namespace UpdateServer
         private static string CalculateMD5(string filename)
         {
             byte[] hash;
-            using (FileStream inputStream = File.Open(filename, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+            using (FileStream inputStream = File.Open(filename, FileMode.Open))
             {
                 MD5 md5 = MD5.Create();
 

@@ -21,45 +21,30 @@ public class UpdateServerEntity
     public delegate Task SendNet(Guid a, string b, bool c = false);
 
     public static bool _debug;
-
     public static ConsoleWriter consoleWriter = new ConsoleWriter();
-
     public static bool consolle = true;
-
     public static int currCount;
-
     public static Dictionary<string, Dictionary<string, string>> DeltaFileStorage =
         new Dictionary<string, Dictionary<string, string>>();
-
     public static string DeltaStorage = "DeltaStorage";
-
     public static UpdateServerEntity instance;
-
     public static int MaxProcessors = 3;
-
     public static pooldelegate poolp;
-
     public static string Rustfolderroot = "Rust";
-
     public static WatsonTcpServer server;
-
     private static readonly long MaxFolderSize = 53687091200;
-
     private static SendNet _sendNet;
-
     private static string certFile = string.Empty;
-
     private static string certPass = string.Empty;
-
     private static List<string> ClientFiles = new List<string>();
-
     private static Dictionary<Guid, UpdateClient> CurrentClients = new Dictionary<Guid, UpdateClient>();
-
     private static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
-
     private static List<ClientProcessor> Occupants = new List<ClientProcessor>();
-
+    #if DEBUG
+    private static string serverIp = "127.0.0.1";
+    #else
     private static string serverIp = "51.91.214.177";
+    #endif
 
     private static int serverPort = 9090;
 
@@ -221,21 +206,21 @@ public class UpdateServerEntity
     {
         var h = InputDictionary(FileHashes);
 
-      
+            
 
 
-        _ =await server.SendAndWaitAsync(50000, id, Heart.Vversion);
+        _ =await server.SendAndWaitAsync(50000, id, "VERSION|"+Heart.Vversion);
 
-        Thread.Sleep(1000);
+        Thread.Sleep(500);
 
-        _ = await server.SendAndWaitAsync(30000, id, JsonConvert.SerializeObject(h));
+        _ = await server.SendAndWaitAsync(30000, id, "SOURCEHASHES|"+JsonConvert.SerializeObject(h));
 
 
     }
 
     public static async Task SendProgress(Guid id, string msg)
     {
-            var resp = server.SendAndWaitAsync(5000, id, msg);
+            var resp = server.SendAndWaitAsync(5000, id,"REPORT|"+ msg);
     }
 
     public static void TickQueue()
@@ -458,11 +443,14 @@ public class UpdateServerEntity
                 {
                     foreach (string y in _client.dataToAdd)
                     {
-                         if (!File.Exists(y)) continue;
+                        var realfilepath = "Rust\\" + y;
+
+
+                         if (!File.Exists(realfilepath)) continue;
 
                          string relativePath = y.Replace("Rust\\", string.Empty);
                          string fixedname = relativePath.Replace('\\', '/');
-                         zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
+                         zip.CreateEntryFromFile(realfilepath, fixedname, CompressionLevel.Optimal);
                          itemcount++;
 
                         
@@ -599,29 +587,34 @@ public class UpdateServerEntity
         string stringmsg = Encoding.UTF8.GetString(req.Data);
         UpdateClient _client = CurrentClients[req.Client.Guid];
 
-        if (stringmsg == "ADD" && req.Metadata != null)
+        var Header = stringmsg.Split('|').First();
+        var sourcemessage = stringmsg.Split('|').Last();
+
+
+
+
+        if (Header =="MISS")
         {
             UpdateClient client = CurrentClients[req.Client.Guid];
 
-#if DEBUG
-           File.WriteAllText("ADD.json",JsonConvert.SerializeObject(req.Metadata,Formatting.Indented));
-#endif
-            client.dataToAdd = req.Metadata.Keys.ToList();
-            PackAdditionalFiles(client);
+            var adding = JsonConvert.DeserializeObject<Dictionary<string, string>>(sourcemessage).Keys.ToList();
+
+                client.dataToAdd = adding;
+
+            Task.Run(() => PackAdditionalFiles(client));
 
             return new SyncResponse(req, "null");
         }
 
-        if (stringmsg == "DIFF" && req.Metadata != null)
+        if (Header == "DIFF")
         {
-#if DEBUG
-           File.WriteAllText("DIFF.json",JsonConvert.SerializeObject(req.Metadata,Formatting.Indented));
-#endif
+
+            _client.AddMissMatchFilelist(JsonConvert.DeserializeObject<Dictionary<string,string>>(sourcemessage));
 
 
-            _client.AddMissMatchFilelist(req.Metadata);
+            var sendb = JsonConvert.SerializeObject(_client.GetTrimmedList());
 
-            var sendb = _client.GetTrimmedList();
+
 
             if (_client.MatchedDeltas.Count() >= _client.missmatchedFilehashes.Count())
             {
@@ -631,7 +624,7 @@ public class UpdateServerEntity
                 TickQueue();
             }
 
-            return new SyncResponse(req, InputDictionary(sendb), _client.MatchedDeltas.Count().ToString());
+            return new SyncResponse(req, _client.MatchedDeltas.Count().ToString()+"|"+sendb);
 
 
         }

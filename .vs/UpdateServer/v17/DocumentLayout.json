@@ -3,22 +3,30 @@
   "WorkspaceRootPath": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{00000000-0000-0000-0000-000000000000}|\u003CSolution\u003E|UpdateServer||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\updateserverentity.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:updateserverentity.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\classes\\clientprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:classes\\clientprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\updateclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\updateclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:updateclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{00000000-0000-0000-0000-000000000000}|\u003CSolution\u003E|UpdateServer||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
+      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\heart.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|s:\\rusticalandprojects(speeddrive)\\updateserver\\classes\\hashgen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:classes\\hashgen.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\classes\\clientprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:classes\\clientprocessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\heart.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{CF422815-8996-4025-B6C8-AFEBFB3BBE77}|UpdateServer.csproj|solutionrelative:heart.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
@@ -32,7 +40,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 9,
+          "SelectedChildIndex": 8,
           "Children": [
             {
               "$type": "Bookmark",
@@ -68,7 +76,45 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
+              "Title": "UpdateServer",
+              "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
+              "RelativeDocumentMoniker": "UpdateServer.csproj",
+              "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
+              "RelativeToolTip": "UpdateServer.csproj",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2024-07-29T19:06:47.85Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Program.cs",
+              "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AQIAAAMAAAAAAAAAAAAAwBYAAAATAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-07-29T17:40:15.455Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "HashGen.cs",
+              "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Classes\\HashGen.cs",
+              "RelativeDocumentMoniker": "Classes\\HashGen.cs",
+              "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Classes\\HashGen.cs",
+              "RelativeToolTip": "Classes\\HashGen.cs",
+              "ViewState": "AQIAABwAAAAAAAAAAAAUwEsAAAATAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-07-29T17:09:08.774Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "ClientProcessor.cs",
               "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Classes\\ClientProcessor.cs",
               "RelativeDocumentMoniker": "Classes\\ClientProcessor.cs",
@@ -76,18 +122,17 @@
               "RelativeToolTip": "Classes\\ClientProcessor.cs",
               "ViewState": "AQIAAG4AAAAAAAAAAAAewIsAAAALAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-07-29T14:55:49.737Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-07-29T14:55:49.737Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "UpdateServerEntity.cs",
               "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServerEntity.cs",
               "RelativeDocumentMoniker": "UpdateServerEntity.cs",
               "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServerEntity.cs",
               "RelativeToolTip": "UpdateServerEntity.cs",
-              "ViewState": "AQIAAOoBAAAAAAAAAAAiwL8BAAA5AAAA",
+              "ViewState": "AQIAAEwCAAAAAAAAAAAkwGgCAAAAAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2024-07-29T14:55:44.497Z",
               "EditorCaption": ""
@@ -100,14 +145,14 @@
               "RelativeDocumentMoniker": "UpdateClient.cs",
               "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateClient.cs",
               "RelativeToolTip": "UpdateClient.cs",
-              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "ViewState": "AQIAAAMAAAAAAAAAAAAAACIAAAA8AAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2024-07-29T14:55:43.782Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 6,
               "Title": "Heart.cs",
               "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\Heart.cs",
               "RelativeDocumentMoniker": "Heart.cs",
@@ -115,20 +160,7 @@
               "RelativeToolTip": "Heart.cs",
               "ViewState": "AQIAAFsAAAAAAAAAAAAowHYAAAAsAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-07-29T14:55:00.864Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "UpdateServer",
-              "DocumentMoniker": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
-              "RelativeDocumentMoniker": "UpdateServer.csproj",
-              "ToolTip": "S:\\RUSTICALANDPROJECTS(SpeedDrive)\\UpdateServer\\UpdateServer.csproj",
-              "RelativeToolTip": "UpdateServer.csproj",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2024-07-29T14:39:22.858Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-07-29T14:55:00.864Z"
             }
           ]
         }
