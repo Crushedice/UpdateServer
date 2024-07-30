@@ -72,6 +72,7 @@ public class UpdateServerEntity
         Puts($"DeltaStorage has {DeltaFileStorage.Count} Files");
 
         Start();
+        CheckUsers();
     }
 
     public static long DirSize(DirectoryInfo d)

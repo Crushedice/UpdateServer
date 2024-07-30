@@ -76,7 +76,7 @@ namespace UpdateServer.Classes
 
                 string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
                                      relativePath.Replace(".octosig", string.Empty);
-                string origfile= FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\",@"\").Replace(@"\Rust\",string.Empty);
+                string origfile= FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\",@"\").Replace(@"\Rust\",string.Empty);
 
                 _sighash = _client.missmatchedFilehashes.First(f => f.Key == origfile).Value;
 
@@ -118,18 +118,26 @@ namespace UpdateServer.Classes
                     Console.WriteLine("  Error in Create Delta:  " + e.Message, "Errors.txt");
                 }
 
-               
-                _deltahash = await CalculateMD5(deltaFilePath);
 
-                    if(!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
+                try
+                {
+                    _deltahash = await CalculateMD5(deltaFilePath);
+
+                    if (!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
                         File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
 
                     var nee = new Dictionary<string, string>();
                     nee.Add(_deltahash, OrigPath);
-                    if(!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
-                    UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
-                
-                
+                    if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
+                        UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
+
+
+                }
+                catch (Exception d)
+                {
+
+                  Console.WriteLine(d.InnerException);
+                }
 
                 prg++;
                 send($"Delta Progress: {prg} / {allc}");
@@ -150,7 +158,7 @@ namespace UpdateServer.Classes
             send("Making ZipFile");
             int allitems = _client.dataToSend.Count();
             string zipFileName = _client.Clientdeltazip;
-            string zipFileName2 = "additionalfiles.zip" ;
+            string zipFileName2 = _client.ClientFolder+"\\additionalfiles.zip" ;
             if (File.Exists(zipFileName)) File.Delete(zipFileName);
             string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
@@ -180,7 +188,7 @@ namespace UpdateServer.Classes
 
                 return;
             }
-        starrt:
+            starrt:
 
             try
             {
