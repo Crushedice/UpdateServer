@@ -103,23 +103,13 @@ public class UpdateServerEntity
         Encoding enc = GetEncoding(path);
         string exepath = Directory.GetCurrentDirectory();
         string finalPath = exepath + "//" + currentUser.ClientFolder + "//Rust";
-        try
-        {
+       
             if (Directory.Exists(currentUser.ClientFolder + "//Rust"))
                 Directory.Delete(currentUser.ClientFolder + "//Rust", true);
 
             ZipFile.ExtractToDirectory(path, finalPath, enc);
             if (IsFileReady(path))
                 File.Delete(path);
-        }
-        catch (Exception e)
-        {
-            FileLogger.CLog("Error in Extract : " + e.Message, "Errors.txt");
-            // sendingMsg("ERR|Error In Extracting Zip Serverside", currentUser.ClientIP, false);
-            SendProgress(currentUser._guid, "Error in Extract : " + e.Message);
-
-            return Task.CompletedTask;
-        }
 
         SendProgress(currentUser._guid, "Enqueue for processing...");
         ClientProcessor newprocessor = new ClientProcessor(currentUser);
@@ -232,7 +222,7 @@ public class UpdateServerEntity
             JsonConvert.SerializeObject(DeltaFileStorage, Formatting.Indented));
 
         Puts("Current Processors: " + Occupants.Count());
-
+        Puts("Current Users: " + server.Connections);
         if (WaitingClients.Count > 0)
         {
             if (Occupants.Count < 2)
@@ -314,14 +304,8 @@ public class UpdateServerEntity
 
                // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
                 if (!server.IsClientConnected(guid))
-                    try
-                    {
-                        Directory.Delete(x, true);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Error In deleting Folder." + e.Message);
-                    }
+                    Directory.Delete(x, true);
+                    
             
         }
     }
@@ -359,19 +343,16 @@ public class UpdateServerEntity
         Puts("Client Disconnected");
 
         ClientProcessor result = Occupants.FirstOrDefault(x => x.tcpipport == args.Client.IpPort);
-
+        
         if (result != null)
         {
             Occupants.Remove(result);
             Puts("ClientDisconnect recognised . Removed.");
-            TickQueue();
-
+          
+        }
+        TickQueue();
+        if(CurrentClients.ContainsKey(args.Client.Guid))
             CurrentClients.Remove(args.Client.Guid);
-        }
-        else
-        {
-            Puts("ClientDisconnect linq result is null");
-        }
     }
 
     private static void DeleteOldFiles()
@@ -431,8 +412,8 @@ public class UpdateServerEntity
            
             int allitems = _client.dataToSend.Count();
             string zipFileName = _client.Clientdeltazip;
-            string zipFileName2 = "additionalfiles.zip" ;
-            if (File.Exists(zipFileName2)) File.Delete(zipFileName2);
+            string zipFileName2 =   _client.ClientFolder + "\\additionalfiles.zip" ;
+            if (File.Exists(zipFileName)) File.Delete(zipFileName2);
             string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
             int itemcount = 0;
@@ -466,8 +447,7 @@ public class UpdateServerEntity
             }
         starrt:
 
-            try
-            {
+            
                 using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
                 {
                     foreach (string x in _client.dataToSend)
@@ -489,17 +469,8 @@ public class UpdateServerEntity
 
                    
                 }
-
                 _client.filetoDelete.Add(zipFileName);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("  Error in pack zip:  " + e.Message, "Errors.txt");
-                FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
-                goto retrying;
-            }
-
-            SendZipFile(_client,zipFileName);
+                SendZipFile(_client,zipFileName);
 
             return;
 

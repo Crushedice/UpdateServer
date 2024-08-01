@@ -26,13 +26,8 @@ S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.csproj.As
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateServer.Heart.resources
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\obj\Debug\UpdateSe.8C1CDA07.Up2Date
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\AutoUpdater.NET.dll
-S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\Exceptionless.dll
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\System.dll
-S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\System.Reflection.Metadata.dll
-S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\System.Collections.Immutable.dll
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\AutoUpdater.NET.pdb
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\AutoUpdater.NET.xml
-S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\Exceptionless.pdb
-S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\Exceptionless.xml
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\Newtonsoft.Json.xml
 S:\RUSTICALANDPROJECTS(SpeedDrive)\UpdateServer\bin\Debug\WatsonTcp.xml
