@@ -1,4 +1,4 @@
-﻿using FastRsync.Core;
+using FastRsync.Core;
 using FastRsync.Delta;
 using FastRsync.Signature;
 using System;
@@ -8,6 +8,8 @@ using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Sentry;
+using UpdateServer.Classes;
 
 namespace UpdateServer.Classes
 {
@@ -60,25 +62,40 @@ namespace UpdateServer.Classes
         }
         private async void CreateDeltaforClient()
         {
-            //Console.WriteLine("creating delta for client....");
-            send("Starting Delta Creation");
+            var transactionId = SentryPerformanceMonitor.StartTransaction(
+                "delta_creation", 
+                "client.processing", 
+                $"Creating delta files for client {_client._guid}");
+            
+            try
+            {
+                send("Starting Delta Creation");
+                SentryPerformanceMonitor.SetUserContext(_client._guid.ToString(), _client.ClientIP);
 
-            string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
-            int allc = allDeltas.Count();
-            int prg = 0;
-            string _sighash = "";
+                string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
+                int allc = allDeltas.Count();
+                int prg = 0;
+                
+                SentryPerformanceMonitor.RecordMetric("delta_files_count", allc);
+                
+                var deltaProcessingSpanId = SentryPerformanceMonitor.StartSpan(
+                    transactionId, 
+                    "delta.file_processing", 
+                    $"Processing {allc} delta files");
+         
             string _deltahash = "";
             string deltaFilePath = "";
 
             foreach (string x in allDeltas)
             {
+                if (x.Contains(".zip")) continue;
                 string relativePath = x.Replace(_client.ClientFolder, string.Empty);
 
                 string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
                                      relativePath.Replace(".octosig", string.Empty);
                 string origfile= FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\",@"\").Replace(@"\Rust\",string.Empty);
 
-                _sighash = _client.missmatchedFilehashes.First(f => f.Key == origfile).Value;
+                
 
                 string OrigPath = origfile;//_client.missmatchedFilehashes[_sighash];
 
@@ -114,22 +131,24 @@ namespace UpdateServer.Classes
                 catch (Exception e)
                 {
                     send($"Error In creating Delta for {x}");
-                    FileLogger.CLog("  Error in Create Delta:  " + e.Message, "Errors.txt");
-                    Console.WriteLine("  Error in Create Delta:  " + e.Message, "Errors.txt");
+                    FileLogger.LogError($"Error in Create Delta: {e.Message}");
+                        SentrySdk.CaptureException(e);
+                    Console.WriteLine($"Error in Create Delta: {e.Message}");
                 }
 
 
                 try
                 {
                     _deltahash = await CalculateMD5(deltaFilePath);
-
+                    var _sighash = _client.missmatchedFilehashes.FirstOrDefault(f => f.Key == origfile).Value;
                     if (!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
                         File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
 
                     var nee = new Dictionary<string, string>();
                     nee.Add(_deltahash, OrigPath);
-                    if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
-                        UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
+                    if (_sighash != null);
+                        if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
+                            UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
 
 
                 }
@@ -145,24 +164,54 @@ namespace UpdateServer.Classes
             }
 
             // await Task.WhenAll(tasks).ConfigureAwait(false);
+            
+            SentryPerformanceMonitor.FinishSpan(deltaProcessingSpanId, SpanStatus.Ok, 
+                new Dictionary<string, object> { { "processed_files", prg } });
            
             EndThisOne();
 
+            SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.Ok, 
+                new Dictionary<string, object> 
+                { 
+                    { "total_files", allc }, 
+                    { "processed_files", prg },
+                    { "client_id", _client._guid.ToString() }
+                });
+            
             //Console.WriteLine("all threads Exited.  Sending data");
+            }
+            catch (Exception ex)
+            {
+                SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.InternalError, 
+                    new Dictionary<string, object> { { "error", ex.Message } });
+                FileLogger.LogError("Error in CreateDeltaforClient");
+                throw;
+            }
         }
 
         public async Task CreateZipFile(bool additionalfiles = false)
         {
-            int retrycount = 0;
-            // Create and open a new ZIP file
-            send("Making ZipFile");
-            int allitems = _client.dataToSend.Count();
-            string zipFileName = _client.Clientdeltazip;
-            string zipFileName2 = _client.ClientFolder+"\\additionalfiles.zip" ;
-            if (File.Exists(zipFileName)) File.Delete(zipFileName);
-            string clientRustFolder = _client.ClientFolder + "\\Rust\\";
+            await SentryPerformanceMonitor.MonitorAsync("zip_creation", async () =>
+            {
+                var transactionId = SentryPerformanceMonitor.StartTransaction(
+                    "create_zip_file", 
+                    "file.compression", 
+                    $"Creating zip file for client {_client._guid}");
+                
+                try
+                {
+                    int retrycount = 0;
+                    send("Making ZipFile");
+                    int allitems = _client.dataToSend.Count();
+                    string zipFileName = _client.Clientdeltazip;
+                    string zipFileName2 = _client.ClientFolder+"\\additionalfiles.zip" ;
+                    if (File.Exists(zipFileName)) File.Delete(zipFileName);
+                    string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
-            int itemcount = 0;
+                    int itemcount = 0;
+                    
+                    SentryPerformanceMonitor.RecordMetric("zip_items_count", allitems);
+                    SentryPerformanceMonitor.SetUserContext(_client._guid.ToString(), _client.ClientIP);
 
 
             if (additionalfiles)
@@ -207,8 +256,9 @@ namespace UpdateServer.Classes
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e.Message, "Errors.txt");
-                            FileLogger.CLog(e.Message, "Errors.txt");
+                            Console.WriteLine($"Error packing file: {e.Message}");
+                            FileLogger.LogError($"Error packing file: {e.Message}");
+                                    SentrySdk.CaptureException(e);
                         }
 
                    
@@ -218,8 +268,9 @@ namespace UpdateServer.Classes
             }
             catch (Exception e)
             {
-                Console.WriteLine("  Error in pack zip:  " + e.Message, "Errors.txt");
-                FileLogger.CLog("  Error in pack zip:  " + e.Message, "Errors.txt");
+                Console.WriteLine($"Error in pack zip: {e.Message}");
+                FileLogger.LogError($"Error in pack zip: {e.Message}");
+                        SentrySdk.CaptureException(e);
                 goto retrying;
             }
 
@@ -236,9 +287,27 @@ namespace UpdateServer.Classes
                 return;
             }
 
-            await Task.Delay(10000);
-            retrycount++;
-            goto starrt;
+                    await Task.Delay(10000);
+                    retrycount++;
+                    goto starrt;
+                    
+                    SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.Ok, 
+                        new Dictionary<string, object> 
+                        { 
+                            { "total_items", allitems }, 
+                            { "packed_items", itemcount },
+                            { "additional_files", additionalfiles },
+                            { "retry_count", retrycount }
+                        });
+                }
+                catch (Exception ex)
+                {
+                    SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.InternalError, 
+                        new Dictionary<string, object> { { "error", ex.Message } });
+                    FileLogger.LogError("Error in CreateZipFile");
+                    throw;
+                }
+            }, "Creating zip file for client data");
         }
 
         private void EndThisOne()
@@ -290,27 +359,32 @@ namespace UpdateServer.Classes
 
         private async Task SendZipFile(string zip, bool stored = false)
         {
-
-            if (stored)
+            await SentryPerformanceMonitor.MonitorAsync("send_zip_file", async () =>
             {
+                var fileInfo = new FileInfo(zip);
+                SentryPerformanceMonitor.RecordMetric("zip_file_size_bytes", fileInfo.Length);
+                SentryPerformanceMonitor.SetUserContext(_client._guid.ToString(), _client.ClientIP);
+                
+                if (stored)
+                {
+                    using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                               FileOptions.Asynchronous))
+                    {
+                        await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                    }
+                    return;
+                }
+                
+                var metadata = new Dictionary<string, object>();
+                metadata.Add("1", "2");
                 using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
                            FileOptions.Asynchronous))
                 {
-                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
                 }
 
-                return;
-
-            }
-            var metadata = new Dictionary<string, object>();
-            metadata.Add("1", "2");
-            using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                       FileOptions.Asynchronous))
-            {
-                await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
-            }
-
-            UpdateServerEntity.EndCall(_client, this, zip);
+                UpdateServerEntity.EndCall(_client, this, zip);
+            }, $"Sending zip file: {Path.GetFileName(zip)}");
         }
     }
 }
