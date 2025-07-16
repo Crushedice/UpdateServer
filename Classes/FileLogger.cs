@@ -1,3 +1,4 @@
+using Sentry;
 using System;
 using System.IO;
 using System.Threading;
@@ -20,6 +21,7 @@ namespace UpdateServer.Classes
         public static void LogInfo(string message)
         {
             LogMessage("INFO", message);
+            SentrySdk.CaptureMessage(message, SentryLevel.Info);
         }
 
         /// <summary>
@@ -29,6 +31,7 @@ namespace UpdateServer.Classes
         public static void LogWarning(string message)
         {
             LogMessage("WARN", message);
+            SentrySdk.CaptureMessage(message,SentryLevel.Warning);
         }
 
         /// <summary>
@@ -38,6 +41,7 @@ namespace UpdateServer.Classes
         public static void LogError(string message)
         {
             LogMessage("ERROR", message);
+            SentrySdk.CaptureMessage( message,SentryLevel.Error);
         }
 
         /// <summary>
@@ -77,7 +81,7 @@ namespace UpdateServer.Classes
                     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
                     var threadId = Thread.CurrentThread.ManagedThreadId;
                     var logEntry = $"[{timestamp}] [{level}] [Thread-{threadId}] {message}";
-
+                    SentrySdk.CaptureMessage(message, SentryLevel.Info);
                     File.AppendAllText(_logFilePath, logEntry + Environment.NewLine);
                 }
             }

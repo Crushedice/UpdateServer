@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Sentry;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -55,7 +56,7 @@ namespace UpdateServer
                 //return;
                 Vversion = "2318";
             }
-
+            
             beat();
         }
 

@@ -8,7 +8,7 @@ namespace UpdateServer
 {
     internal static class Program
     {
-        [DebuggerStepThrough]
+       // [DebuggerStepThrough]
         [STAThread]
         private static void Main(string[] args)
         {
@@ -16,7 +16,7 @@ namespace UpdateServer
             SentrySdk.Init(o =>
             {
                 // Tells which project in Sentry to send events to:
-                  o.Dsn = "https://37fb8cce191246fd8e59806e5fdb1510@logging.rusticaland.ovh/3";
+                o.Dsn = "https://f1a2aed8eae385969e335e8f83a5e7f8@logging.rusticaland.ovh/2";
                 //o.Dsn = "http://37fb8cce191246fd8e59806e5fdb1510:3fc984c23fdc4d1bbfe3aa1dfe5ff674@100.83.135.101:9000/3";
                 // When configuring for the first time, to see what the SDK is doing:
                 o.Debug = false;
@@ -26,9 +26,10 @@ namespace UpdateServer
                 o.SendClientReports = true;
                 o.AutoSessionTracking = true; 
                 o.SendDefaultPii = true;
-                o.IsGlobalModeEnabled = true;   
+                o.IsGlobalModeEnabled = true;  
                 o.AddDiagnosticSourceIntegration();
-                
+                o.Release = "1.0.0.1";
+               
             });
 
             // Configure WinForms to throw exceptions so Sentry can capture them.
@@ -37,10 +38,11 @@ namespace UpdateServer
             // Add breadcrumb to track application start
             SentrySdk.AddBreadcrumb("Application started", "app.start");
            
-           
+           SentrySdk.CaptureMessage("Application started", SentryLevel.Info);
 
             new Heart();
             
+
             while (true)
             {
 

@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="packages\Sentry.5.11.2\build\Sentry.props" Condition="Exists('packages\Sentry.5.11.2\build\Sentry.props')" />
+  <Import Project="packages\Sentry.5.12.0\build\Sentry.props" Condition="Exists('packages\Sentry.5.12.0\build\Sentry.props')" />
   <Import Project="packages\Microsoft.Diagnostics.Tracing.TraceEvent.3.1.23\build\Microsoft.Diagnostics.Tracing.TraceEvent.props" Condition="Exists('packages\Microsoft.Diagnostics.Tracing.TraceEvent.3.1.23\build\Microsoft.Diagnostics.Tracing.TraceEvent.props')" />
   <Import Project="packages\Costura.Fody.4.1.0\build\Costura.Fody.props" Condition="Exists('packages\Costura.Fody.4.1.0\build\Costura.Fody.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -71,11 +71,11 @@
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
+    <ErrorReport>queue</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
-    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
   </PropertyGroup>
   <PropertyGroup />
   <PropertyGroup>
@@ -138,11 +138,11 @@
       <HintPath>..\..\Users\Crushed\Source\Repos\Rusticaland-Standalone-Updater\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="PresentationFramework" />
-    <Reference Include="Sentry, Version=5.11.2.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0, processorArchitecture=MSIL">
-      <HintPath>packages\Sentry.5.11.2\lib\net462\Sentry.dll</HintPath>
+    <Reference Include="Sentry, Version=5.12.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0, processorArchitecture=MSIL">
+      <HintPath>packages\Sentry.5.12.0\lib\net462\Sentry.dll</HintPath>
     </Reference>
-    <Reference Include="Sentry.DiagnosticSource, Version=5.11.2.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0, processorArchitecture=MSIL">
-      <HintPath>packages\Sentry.DiagnosticSource.5.11.2\lib\net462\Sentry.DiagnosticSource.dll</HintPath>
+    <Reference Include="Sentry.DiagnosticSource, Version=5.12.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0, processorArchitecture=MSIL">
+      <HintPath>packages\Sentry.DiagnosticSource.5.12.0\lib\net462\Sentry.DiagnosticSource.dll</HintPath>
     </Reference>
     <Reference Include="System">
       <Private>True</Private>
@@ -252,10 +252,10 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('packages\Sentry.Profiling.5.11.2\build\Sentry.Profiling.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.Profiling.5.11.2\build\Sentry.Profiling.targets'))" />
-    <Error Condition="!Exists('packages\Sentry.5.11.2\build\Sentry.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.11.2\build\Sentry.props'))" />
-    <Error Condition="!Exists('packages\Sentry.5.11.2\build\Sentry.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.11.2\build\Sentry.targets'))" />
+    <Error Condition="!Exists('packages\Sentry.5.12.0\build\Sentry.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.12.0\build\Sentry.props'))" />
+    <Error Condition="!Exists('packages\Sentry.5.12.0\build\Sentry.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.12.0\build\Sentry.targets'))" />
+    <Error Condition="!Exists('packages\Sentry.Profiling.5.12.0\build\Sentry.Profiling.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.Profiling.5.12.0\build\Sentry.Profiling.targets'))" />
   </Target>
-  <Import Project="packages\Sentry.Profiling.5.11.2\build\Sentry.Profiling.targets" Condition="Exists('packages\Sentry.Profiling.5.11.2\build\Sentry.Profiling.targets')" />
-  <Import Project="packages\Sentry.5.11.2\build\Sentry.targets" Condition="Exists('packages\Sentry.5.11.2\build\Sentry.targets')" />
+  <Import Project="packages\Sentry.5.12.0\build\Sentry.targets" Condition="Exists('packages\Sentry.5.12.0\build\Sentry.targets')" />
+  <Import Project="packages\Sentry.Profiling.5.12.0\build\Sentry.Profiling.targets" Condition="Exists('packages\Sentry.Profiling.5.12.0\build\Sentry.Profiling.targets')" />
 </Project>
