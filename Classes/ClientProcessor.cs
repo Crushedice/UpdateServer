@@ -64,7 +64,7 @@ namespace UpdateServer.Classes
         private async void CreateDeltaforClient()
         {
             SentrySdk.AddBreadcrumb("CreateDeltaFor client");
-            var transactionId = SentryPerformanceMonitor.StartTransaction(
+            var transactionId = SentrySdk.StartTransaction(
                 "delta_creation",
                 "client.processing",
                 $"Creating delta files for client {_client._guid}");
@@ -79,8 +79,7 @@ namespace UpdateServer.Classes
                 string _deltahash = "";
                 string deltaFilePath = "";
                 SentryPerformanceMonitor.RecordMetric("delta_files_count", allc);
-                var deltaProcessingSpanId = SentryPerformanceMonitor.StartSpan(
-                    transactionId,
+                var deltaProcessingSpanId = transactionId.StartChild(
                     "delta.file_processing",
                     $"Processing {allc} delta files");
                 foreach (string x in allDeltas)
@@ -154,22 +153,15 @@ namespace UpdateServer.Classes
                     send($"Delta Progress: {prg} / {allc}");
                     UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
                 }
-                SentryPerformanceMonitor.FinishSpan(deltaProcessingSpanId, SpanStatus.Ok,
-               new Dictionary<string, object> { { "processed_files", prg } });
+                deltaProcessingSpanId.Finish();
                 EndThisOne();
-                SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.Ok,
-               new Dictionary<string, object>
-               {
-                    { "total_files", allc },
-                    { "processed_files", prg },
-                    { "client_id", _client._guid.ToString() }
-               });
+                transactionId.Finish();
+               
 
             }
             catch (Exception ex)
             {
-                SentryPerformanceMonitor.FinishTransaction(transactionId, SpanStatus.InternalError,
-                    new Dictionary<string, object> { { "error", ex.Message } });
+                transactionId.Finish();
                 SentrySdk.CaptureException(ex);
                 FileLogger.LogError("Error in CreateDeltaforClient");
                 
@@ -178,6 +170,7 @@ namespace UpdateServer.Classes
 
         public async Task CreateZipFile(bool additionalfiles = false)
         {
+
             try
             {
                 int retrycount = 0;

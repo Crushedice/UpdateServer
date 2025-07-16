@@ -219,81 +219,50 @@ public class UpdateServerEntity
 
     public static async Task SendProgress(Guid id, string msg)
     {
-            var resp = server.SendAndWaitAsync(5000, id,"REPORT|"+ msg);
+        var transaction = SentrySdk.StartTransaction("SendProgress", "task");
+        try
+        {
+            var resp = await server.SendAndWaitAsync(5000, id, "REPORT|" + msg);
+            transaction.Finish(SpanStatus.Ok);
+        }
+        catch (Exception ex)
+        {
+            SentrySdk.CaptureException(ex);
+            transaction.Finish(SpanStatus.InternalError);
+            throw;
+        }
     }
 
     public static void TickQueue()
     {
-        //SentrySdk.CaptureMessage("");
-        int waitingCount, occupantsCount;
-        ClientProcessor nextProcessor = null;
-        List<ClientProcessor> waitingProcessors = new List<ClientProcessor>();
-        
-        // Thread-safe access to collections
-        lock (WaitingClientsLock)
+        try
         {
-            waitingCount = WaitingClients.Count;
-            
-            lock (OccupantsLock)
+            Puts("Waitqueue Count: " + WaitingClients.Count());
+
+            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(Heart.singleStoredDelta, Formatting.Indented));
+
+            Puts("Current Processors: " + Occupants.Count());
+
+            if (WaitingClients.Count > 0)
             {
-                occupantsCount = Occupants.Count;
-                
-                if (waitingCount > 0 && occupantsCount <= 1)
+                SentrySdk.AddBreadcrumb("Occupants More than 0 - ");
+                if (Occupants.Count < 3)
                 {
-                    nextProcessor = WaitingClients.Dequeue();
-                    Occupants.Add(nextProcessor);
+                    Puts("Occupants less then 3. Processing commence ");
+                    SentrySdk.AddBreadcrumb("Occupants less than 3, processing next client in queue.");
+                    ClientProcessor nextone = WaitingClients.Dequeue();
+                    Occupants.Add(nextone);
+                    nextone.StartupThisOne();
+                    //_CurrLock = true;
+                    // return;
                 }
-                
-                // Create a copy of waiting clients for notification
-                if (waitingCount > 0)
-                {
-                    waitingProcessors.AddRange(WaitingClients);
-                }
+
+                foreach (ClientProcessor c in WaitingClients) c.Notify();
             }
         }
-        
-        // Thread-safe file writing
-        lock (FileAccessLock)
+        catch (Exception ex)
         {
-            Dictionary<string, Dictionary<string, string>> deltaStorageCopy;
-            lock (DeltaFileStorageLock)
-            {
-                deltaStorageCopy = new Dictionary<string, Dictionary<string, string>>(DeltaFileStorage);
-            }
-            
-            try
-            {
-                File.WriteAllText("SingleDelta.json",
-                    JsonConvert.SerializeObject(deltaStorageCopy, Formatting.Indented));
-            }
-            catch (Exception ex)
-            {
-                Puts($"Error writing SingleDelta.json: {ex.Message}");
-            }
-        }
-        
-        Puts("Waitqueue Count: " + waitingCount);
-        Puts("Current Processors: " + occupantsCount);
-        Puts("Current Users: " + server.Connections);
-        SentrySdk.AddBreadcrumb("Queue Tick - " + waitingCount+" - "+occupantsCount);
-        // Start processing if we have a next processor
-        if (nextProcessor != null)
-        {
-            Puts("Occupants less then 2. Processing commence ");
-            nextProcessor.StartupThisOne();
-        }
-        
-        // Notify waiting processors
-        foreach (ClientProcessor c in waitingProcessors)
-        {
-            try
-            {
-                c.Notify();
-            }
-            catch (Exception ex)
-            {
-                Puts($"Error notifying processor: {ex.Message}");
-            }
+            SentrySdk.CaptureException(ex);
         }
     }
 
@@ -390,21 +359,26 @@ public class UpdateServerEntity
         foreach (string x in AllDirs)
         {
 
-
-                
+            try
+            {
                 string thisone = x.Split(Path.DirectorySeparatorChar).Last();
 
                 if (thisone.Contains(".")) return;
-    
+
                 Guid guid = Guid.Parse(thisone);
 
                 // Console.WriteLine("Checking User " + thisone);
 
-               // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
+                // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
                 if (!server.IsClientConnected(guid))
                     Directory.Delete(x, true);
+            }
+            catch (Exception ex)
+            {
+
+                SentrySdk.CaptureException(ex);
+            }
                     
-            
         }
     }
 
@@ -416,21 +390,30 @@ public class UpdateServerEntity
         string clientfolder = @"ClientFolders\" + fixedip;
         string fullpath = new DirectoryInfo(clientfolder).FullName;
 
-        if (!Directory.Exists(fullpath))
-            Directory.CreateDirectory(fullpath);
-
-        if (!Directory.Exists(clientfolder))
-            Directory.CreateDirectory(clientfolder);
-        string Clientdeltazip = clientfolder + @"\" + fixedip + ".zip";
-
-        lock (CurrentClientsLock)
+        try
         {
-            CurrentClients.Add(e.Client.Guid,
-                new UpdateClient(e.Client.Guid, e.Client.IpPort, clientfolder, Clientdeltazip));
-            currCount++;
-        }
+            if (!Directory.Exists(fullpath))
+                Directory.CreateDirectory(fullpath);
 
-        _ = Task.Run(async () => await quickhashes(e.Client.Guid));
+            if (!Directory.Exists(clientfolder))
+                Directory.CreateDirectory(clientfolder);
+            string Clientdeltazip = clientfolder + @"\" + fixedip + ".zip";
+
+            lock (CurrentClientsLock)
+            {
+                CurrentClients.Add(e.Client.Guid,
+                    new UpdateClient(e.Client.Guid, e.Client.IpPort, clientfolder, Clientdeltazip));
+                currCount++;
+            }
+
+            _ = Task.Run(async () => await quickhashes(e.Client.Guid));
+
+        }
+        catch (Exception ed)
+        {
+
+            SentrySdk.CaptureException(ed);
+        }
 
         TickQueue();
 
@@ -667,6 +650,7 @@ public class UpdateServerEntity
     private static async Task<SyncResponse> SyncRequestReceived(SyncRequest req)
     {
         Puts("syncrequest");
+        SentrySdk.AddBreadcrumb("New Syncrequest");
         string stringmsg = Encoding.UTF8.GetString(req.Data);
         UpdateClient _client = CurrentClients[req.Client.Guid];
 
@@ -683,7 +667,7 @@ public class UpdateServerEntity
             var adding = JsonConvert.DeserializeObject<Dictionary<string, string>>(sourcemessage).Keys.ToList();
 
                 client.dataToAdd = adding;
-
+            SentrySdk.AddBreadcrumb($"Received MISS request from client {req.Client.Guid} with {adding.Count} files to add.");
             Task.Run(() => PackAdditionalFiles(client));
 
             return new SyncResponse(req, "null");
@@ -696,7 +680,7 @@ public class UpdateServerEntity
 
 
             var sendb = JsonConvert.SerializeObject(_client.GetTrimmedList());
-
+            SentrySdk.AddBreadcrumb($"Received DIFF request from client {_client._guid} with {sendb.Count()} files to send.");
 
 
             if (_client.MatchedDeltas.Count() >= _client.missmatchedFilehashes.Count())

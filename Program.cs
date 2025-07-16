@@ -1,4 +1,5 @@
 ﻿using Sentry;
+using Sentry.Extensibility;
 using System;
 using System.Diagnostics;
 using System.Windows.Forms;
@@ -8,7 +9,30 @@ namespace UpdateServer
 {
     internal static class Program
     {
-       // [DebuggerStepThrough]
+        
+
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            // Get stack trace for the exception with source file information
+            StackTrace st = new StackTrace(e.ExceptionObject as Exception, true);
+            Exception ex = e.ExceptionObject as Exception;
+            // Get the top stack frame
+            StackFrame frame = st.GetFrame(0);
+            // Get the line number from the stack frame
+            int line = frame.GetFileLineNumber();
+            string message = line + "\n";
+            SentrySdk.ConfigureScope(scope =>
+              {
+                  scope.SetExtra("Exception Line", line);
+                  scope.SetExtra("Exception Message", ex.Message);
+                  scope.SetExtra("Exception StackTrace", ex.StackTrace);
+                  
+              });
+            SentrySdk.CaptureException(ex);
+
+        }
+
+        // [DebuggerStepThrough]
         [STAThread]
         private static void Main(string[] args)
         {
@@ -28,8 +52,9 @@ namespace UpdateServer
                 o.SendDefaultPii = true;
                 o.IsGlobalModeEnabled = true;  
                 o.AddDiagnosticSourceIntegration();
-                o.Release = "1.0.0.1";
-               
+                o.ProfilesSampleRate = 1.0;
+              
+
             });
 
             // Configure WinForms to throw exceptions so Sentry can capture them.
