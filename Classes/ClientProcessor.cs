@@ -170,14 +170,19 @@ namespace UpdateServer.Classes
 
         public async Task CreateZipFile(bool additionalfiles = false)
         {
-
+            // Start Sentry transaction for zip creation
+            var transaction = SentrySdk.StartTransaction(
+                "zip_creation",
+                additionalfiles ? "client.additionalfiles_zip" : "client.deltafiles_zip",
+                $"Creating zip file for client {_client._guid} (additionalfiles={additionalfiles})"
+            );
             try
             {
                 int retrycount = 0;
                 send("Making ZipFile");
                 int allitems = _client.dataToSend.Count();
                 string zipFileName = _client.Clientdeltazip;
-                string zipFileName2 = _client.ClientFolder+"\\additionalfiles.zip" ;
+                string zipFileName2 = _client.ClientFolder + "\\additionalfiles.zip";
                 if (File.Exists(zipFileName)) File.Delete(zipFileName);
                 string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
@@ -185,6 +190,7 @@ namespace UpdateServer.Classes
 
                 if (additionalfiles)
                 {
+                    var addFilesSpan = transaction.StartChild("zip.additionalfiles", "Packing additional files");
                     using (ZipArchive zip = ZipFile.Open(zipFileName2, ZipArchiveMode.Create))
                     {
                         foreach (string y in _client.dataToAdd)
@@ -199,13 +205,16 @@ namespace UpdateServer.Classes
                             send($"Packing Update: {itemcount} / {allitems}");
                         }
                     }
+                    addFilesSpan.Finish();
                     _client.filetoDelete.Add(zipFileName2);
-                    SendZipFile(zipFileName2,true);
+                    await SendZipFile(zipFileName2, true);
+                    transaction.Finish();
                     return;
                 }
             starrt:
                 try
                 {
+                    var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
                     using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
                     {
                         foreach (string x in _client.dataToSend)
@@ -226,6 +235,7 @@ namespace UpdateServer.Classes
                                 FileLogger.LogError($"Error packing file: {e.Message}");
                             }
                     }
+                    deltaFilesSpan.Finish();
                     _client.filetoDelete.Add(zipFileName);
                 }
                 catch (Exception e)
@@ -235,12 +245,14 @@ namespace UpdateServer.Classes
                     SentrySdk.CaptureException(e);
                     goto retrying;
                 }
-                SendZipFile(zipFileName);
+                await SendZipFile(zipFileName);
+                transaction.Finish();
                 return;
             retrying:
                 if (retrycount > 5)
                 {
                     UpdateServerEntity.EndCall(_client, this, zipFileName, true);
+                    transaction.Finish();
                     return;
                 }
                 await Task.Delay(10000);
@@ -251,7 +263,13 @@ namespace UpdateServer.Classes
             {
                 FileLogger.LogError("Error in CreateZipFile");
                 SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
                 throw;
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
             }
         }
 
@@ -303,25 +321,51 @@ namespace UpdateServer.Classes
         }
 
         private async Task SendZipFile(string zip, bool stored = false)
-        {
-            var fileInfo = new FileInfo(zip);
-            if (stored)
+        {   
+            // Start Sentry transaction for sending zip file
+            var transaction = SentrySdk.StartTransaction(
+                "send_zip_file",
+                stored ? "client.send_stored_zip" : "client.send_delta_zip",
+                $"Sending zip file for client {_client._guid} (stored={stored})"
+            );
+            try
             {
+                var fileInfo = new FileInfo(zip);
+                if (stored)
+                {
+                    var storedSpan = transaction.StartChild("send.stored_zip", "Sending stored zip file");
+                    using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                               FileOptions.Asynchronous))
+                    {
+                        await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                    }
+                    storedSpan.Finish();
+                    transaction.Finish();
+                    return;
+                }
+                var metadata = new Dictionary<string, object>();
+                metadata.Add("1", "2");
+                var deltaSpan = transaction.StartChild("send.delta_zip", "Sending delta zip file");
                 using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
                            FileOptions.Asynchronous))
                 {
-                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
                 }
-                return;
+                deltaSpan.Finish();
+                UpdateServerEntity.EndCall(_client, this, zip);
+                transaction.Finish();
             }
-            var metadata = new Dictionary<string, object>();
-            metadata.Add("1", "2");
-            using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                       FileOptions.Asynchronous))
+            catch (Exception ex)
             {
-                await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
+                SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
+                throw;
             }
-            UpdateServerEntity.EndCall(_client, this, zip);
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
         }
     }
 }
