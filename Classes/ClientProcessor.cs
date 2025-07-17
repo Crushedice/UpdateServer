@@ -4,6 +4,7 @@ using FastRsync.Signature;
 using Sentry;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -26,6 +27,11 @@ namespace UpdateServer.Classes
             tcpipport = user.ClientIP;
             _instanceRef = this;
             SentrySdk.CaptureMessage("New Client Created");
+        }
+
+        ~ClientProcessor()
+        {
+                       SentrySdk.CaptureMessage("ClientProcessor Disposed");
         }
 
         private UpdateClient _client { get; }
@@ -84,6 +90,16 @@ namespace UpdateServer.Classes
                     $"Processing {allc} delta files");
                 foreach (string x in allDeltas)
                 {
+                    if(!UpdateServerEntity.server.IsClientConnected(this._client._guid))
+                    {
+                        SentrySdk.CaptureMessage("Client Disconnected during Delta Creation", s => { 
+                        s.SetExtra("ClientGuid", _client._guid.ToString());
+                        });
+                        deltaProcessingSpanId.Finish();
+                        transactionId.Finish();
+                        return;
+                    }
+
                     if (x.Contains(".zip")) continue;
                     string relativePath = x.Replace(_client.ClientFolder, string.Empty);
 
@@ -127,7 +143,17 @@ namespace UpdateServer.Classes
                         send($"Error In creating Delta for {x}");
                         FileLogger.LogError($"Error in Create Delta: {e.Message}");
                         Console.WriteLine($"Error in Create Delta: {e.Message}");
-                        SentrySdk.CaptureException(e);
+                        SentrySdk.CaptureException(e, scope =>
+                        {
+                            
+                            StackTrace st = new StackTrace(e , true);
+                            StackFrame frame = st.GetFrame(0);
+                            int line = frame.GetFileLineNumber();
+                            scope.SetExtra("Exception Line", line);
+                            scope.SetExtra("Exception Message", e.Message);
+                            scope.SetExtra("Exception StackTrace", e.StackTrace);
+
+                        });
                     }
 
                     try
@@ -145,7 +171,16 @@ namespace UpdateServer.Classes
                     }
                     catch (Exception d)
                     {
-                        SentrySdk.CaptureException(d);
+                        SentrySdk.CaptureException(d, scope =>
+                        {
+                            StackTrace st = new StackTrace(d, true);
+                            StackFrame frame = st.GetFrame(0);
+                            int line = frame.GetFileLineNumber();
+                            scope.SetExtra("Exception Line", line);
+                            scope.SetExtra("Exception Message", d.Message);
+                            scope.SetExtra("Exception StackTrace", d.StackTrace);
+
+                        });
                         Console.WriteLine(d.InnerException);
                     }
 
@@ -153,6 +188,13 @@ namespace UpdateServer.Classes
                     send($"Delta Progress: {prg} / {allc}");
                     UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
                 }
+
+                SentrySdk.CaptureMessage("DeltaFinished", s =>
+                {
+                   s.SetTag("ClientGuid", _client._guid.ToString());
+                    s.SetExtra("DeltaFilesCount", allc);
+                    s.SetExtra("DeltaFilePath", deltaFilePath);
+                });
                 deltaProcessingSpanId.Finish();
                 EndThisOne();
                 transactionId.Finish();
@@ -162,7 +204,16 @@ namespace UpdateServer.Classes
             catch (Exception ex)
             {
                 transactionId.Finish();
-                SentrySdk.CaptureException(ex);
+                SentrySdk.CaptureException(ex, scope =>
+                {
+                    StackTrace st = new StackTrace(ex, true);
+                    StackFrame frame = st.GetFrame(0);
+                    int line = frame.GetFileLineNumber();
+                    scope.SetExtra("Exception Line", line);
+                    scope.SetExtra("Exception Message", ex.Message);
+                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                });
                 FileLogger.LogError("Error in CreateDeltaforClient");
                 
             }
@@ -228,11 +279,20 @@ namespace UpdateServer.Classes
 
                                 send($"Packing Update: {itemcount} / {allitems}");
                             }
-                            catch (Exception e)
+                            catch (Exception ex)
                             {
-                                SentrySdk.CaptureException(e);
-                                Console.WriteLine($"Error packing file: {e.Message}");
-                                FileLogger.LogError($"Error packing file: {e.Message}");
+                                SentrySdk.CaptureException(ex, scope =>
+                                {
+                                    StackTrace st = new StackTrace(ex, true);
+                                    StackFrame frame = st.GetFrame(0);
+                                    int line = frame.GetFileLineNumber();
+                                    scope.SetExtra("Exception Line", line);
+                                    scope.SetExtra("Exception Message", ex.Message);
+                                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                                });
+                                Console.WriteLine($"Error packing file: {ex.Message}");
+                                FileLogger.LogError($"Error packing file: {ex.Message}");
                             }
                     }
                     deltaFilesSpan.Finish();
@@ -242,7 +302,16 @@ namespace UpdateServer.Classes
                 {
                     Console.WriteLine($"Error in pack zip: {e.Message}");
                     FileLogger.LogError($"Error in pack zip: {e.Message}");
-                    SentrySdk.CaptureException(e);
+                    SentrySdk.CaptureException(e, scope =>
+                    {
+                        StackTrace st = new StackTrace(e, true);
+                        StackFrame frame = st.GetFrame(0);
+                        int line = frame.GetFileLineNumber();
+                        scope.SetExtra("Exception Line", line);
+                        scope.SetExtra("Exception Message", e.Message);
+                        scope.SetExtra("Exception StackTrace", e.StackTrace);
+
+                    });
                     goto retrying;
                 }
                 await SendZipFile(zipFileName);
@@ -262,7 +331,16 @@ namespace UpdateServer.Classes
             catch (Exception ex)
             {
                 FileLogger.LogError("Error in CreateZipFile");
-                SentrySdk.CaptureException(ex);
+                SentrySdk.CaptureException(ex, scope =>
+                {
+                    StackTrace st = new StackTrace(ex, true);
+                    StackFrame frame = st.GetFrame(0);
+                    int line = frame.GetFileLineNumber();
+                    scope.SetExtra("Exception Line", line);
+                    scope.SetExtra("Exception Message", ex.Message);
+                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                });
                 transaction.Finish(ex);
                 throw;
             }
@@ -278,6 +356,8 @@ namespace UpdateServer.Classes
             UpdateServerEntity.Puts("Await Done Ending thisone");
             _ = CreateZipFile();
         }
+
+        
 
         private string GetRelativePath(string filespec, string folder)
         {
@@ -357,7 +437,16 @@ namespace UpdateServer.Classes
             }
             catch (Exception ex)
             {
-                SentrySdk.CaptureException(ex);
+                SentrySdk.CaptureException(ex, scope =>
+                {
+                    StackTrace st = new StackTrace(ex, true);
+                    StackFrame frame = st.GetFrame(0);
+                    int line = frame.GetFileLineNumber();
+                    scope.SetExtra("Exception Line", line);
+                    scope.SetExtra("Exception Message", ex.Message);
+                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                });
                 transaction.Finish(ex);
                 throw;
             }

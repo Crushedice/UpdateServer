@@ -68,10 +68,10 @@
     </DefineConstants>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Optimize>false</Optimize>
-    <DebugType>full</DebugType>
+    <DebugType>portable</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <LangVersion>7.3</LangVersion>
-    <ErrorReport>queue</ErrorReport>
+    <ErrorReport>send</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
@@ -251,6 +251,11 @@
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <PropertyGroup>
+      <DebugType>portable</DebugType>
+      <EmbedAllSources>true</EmbedAllSources>
+      <EmbedUntrackedSources>true</EmbedUntrackedSources>
     </PropertyGroup>
     <Error Condition="!Exists('packages\Sentry.5.12.0\build\Sentry.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.12.0\build\Sentry.props'))" />
     <Error Condition="!Exists('packages\Sentry.5.12.0\build\Sentry.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Sentry.5.12.0\build\Sentry.targets'))" />

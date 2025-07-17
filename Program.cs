@@ -14,21 +14,24 @@ namespace UpdateServer
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             // Get stack trace for the exception with source file information
-            StackTrace st = new StackTrace(e.ExceptionObject as Exception, true);
             Exception ex = e.ExceptionObject as Exception;
-            // Get the top stack frame
-            StackFrame frame = st.GetFrame(0);
-            // Get the line number from the stack frame
-            int line = frame.GetFileLineNumber();
-            string message = line + "\n";
-            SentrySdk.ConfigureScope(scope =>
-              {
-                  scope.SetExtra("Exception Line", line);
-                  scope.SetExtra("Exception Message", ex.Message);
-                  scope.SetExtra("Exception StackTrace", ex.StackTrace);
-                  
-              });
-            SentrySdk.CaptureException(ex);
+           // StackTrace st = new StackTrace(e.ExceptionObject as Exception, true);
+          //  StackFrame frame = st.GetFrame(0);
+          //  int line = frame.GetFileLineNumber();
+            
+            
+            SentrySdk.CaptureException(ex, scope =>
+            {
+                StackTrace st = new StackTrace(e.ExceptionObject as Exception, true);
+                StackFrame frame = st.GetFrame(0);
+                int line = frame.GetFileLineNumber();
+                scope.SetExtra("Exception Line", line);
+                scope.SetExtra("Exception Message", ex.Message);
+                scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+            });
+
+
 
         }
 
@@ -37,7 +40,7 @@ namespace UpdateServer
         private static void Main(string[] args)
         {
             // Initialize Sentry SDK
-            SentrySdk.Init(o =>
+            using (SentrySdk.Init(o =>
             {
                 // Tells which project in Sentry to send events to:
                 o.Dsn = "https://f1a2aed8eae385969e335e8f83a5e7f8@logging.rusticaland.ovh/2";
@@ -48,26 +51,24 @@ namespace UpdateServer
                 // We recommend adjusting this value in production.
                 o.TracesSampleRate = 1.0;
                 o.SendClientReports = true;
-                o.AutoSessionTracking = true; 
+                o.AutoSessionTracking = true;
                 o.SendDefaultPii = true;
-                o.IsGlobalModeEnabled = true;  
+                o.IsGlobalModeEnabled = true;
                 o.AddDiagnosticSourceIntegration();
                 o.ProfilesSampleRate = 1.0;
-              
+                o.AttachStacktrace = true;
+                o.DiagnosticLevel = SentryLevel.Info;
 
-            });
+           
 
-            // Configure WinForms to throw exceptions so Sentry can capture them.
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+                // Configure WinForms to throw exceptions so Sentry can capture them.
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
             //SentrySdk.CauseCrash(CrashType.Managed); 
             // Add breadcrumb to track application start
             SentrySdk.AddBreadcrumb("Application started", "app.start");
-           
-           SentrySdk.CaptureMessage("Application started", SentryLevel.Info);
+            SentrySdk.CaptureMessage("Application started", SentryLevel.Info);
 
             new Heart();
-            
-
             while (true)
             {
 
@@ -77,9 +78,10 @@ namespace UpdateServer
 
                 if (input.Key == ConsoleKey.S) break;
             }
-            
-            // Add breadcrumb when application exits normally
-            SentrySdk.AddBreadcrumb("Application exiting normally", "app.exit");
+            }))
+
+                // Add breadcrumb when application exits normally
+                SentrySdk.AddBreadcrumb("Application exiting normally", "app.exit");
                 
             
         }

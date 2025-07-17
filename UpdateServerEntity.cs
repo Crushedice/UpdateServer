@@ -3,6 +3,7 @@ using Sentry;
 using StringHelp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -213,6 +214,16 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
+            SentrySdk.CaptureException(ex, scope =>
+            {
+                StackTrace st = new StackTrace(ex, true);
+                StackFrame frame = st.GetFrame(0);
+                int line = frame.GetFileLineNumber();
+                scope.SetExtra("Exception Line", line);
+                scope.SetExtra("Exception Message", ex.Message);
+                scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+            });
             Puts($"Error in quickhashes: {ex.Message}");
         }
     }
@@ -227,7 +238,16 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex);
+            SentrySdk.CaptureException(ex, scope =>
+            {
+                StackTrace st = new StackTrace(ex, true);
+                StackFrame frame = st.GetFrame(0);
+                int line = frame.GetFileLineNumber();
+                scope.SetExtra("Exception Line", line);
+                scope.SetExtra("Exception Message", ex.Message);
+                scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+            });
             transaction.Finish(SpanStatus.InternalError);
             throw;
         }
@@ -239,7 +259,7 @@ public class UpdateServerEntity
         {
             Puts("Waitqueue Count: " + WaitingClients.Count());
 
-            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(Heart.singleStoredDelta, Formatting.Indented));
+            File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(DeltaFileStorage, Formatting.Indented));
 
             Puts("Current Processors: " + Occupants.Count());
 
@@ -262,7 +282,16 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex);
+            SentrySdk.CaptureException(ex, scope =>
+            {
+                StackTrace st = new StackTrace(ex, true);
+                StackFrame frame = st.GetFrame(0);
+                int line = frame.GetFileLineNumber();
+                scope.SetExtra("Exception Line", line);
+                scope.SetExtra("Exception Message", ex.Message);
+                scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+            });
         }
     }
 
@@ -376,7 +405,16 @@ public class UpdateServerEntity
             catch (Exception ex)
             {
 
-                SentrySdk.CaptureException(ex);
+                SentrySdk.CaptureException(ex, scope =>
+                {
+                    StackTrace st = new StackTrace(ex, true);
+                    StackFrame frame = st.GetFrame(0);
+                    int line = frame.GetFileLineNumber();
+                    scope.SetExtra("Exception Line", line);
+                    scope.SetExtra("Exception Message", ex.Message);
+                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                });
             }
                     
         }
@@ -409,10 +447,19 @@ public class UpdateServerEntity
             _ = Task.Run(async () => await quickhashes(e.Client.Guid));
 
         }
-        catch (Exception ed)
+        catch (Exception ex)
         {
 
-            SentrySdk.CaptureException(ed);
+            SentrySdk.CaptureException(ex, scope =>
+            {
+                StackTrace st = new StackTrace(ex, true);
+                StackFrame frame = st.GetFrame(0);
+                int line = frame.GetFileLineNumber();
+                scope.SetExtra("Exception Line", line);
+                scope.SetExtra("Exception Message", ex.Message);
+                scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+            });
         }
 
         TickQueue();
@@ -553,11 +600,21 @@ public class UpdateServerEntity
 
                           
                         }
-                        catch (Exception e)
+                        catch (Exception ex)
                         {
-                            Console.WriteLine(e.Message, "Errors.txt");
-                            FileLogger.LogInfo(e.Message);
-                        }
+                            Console.WriteLine(ex.Message, "Errors.txt");
+                            FileLogger.LogInfo(ex.Message);
+                    SentrySdk.CaptureException(ex, scope =>
+                    {
+                        StackTrace st = new StackTrace(ex, true);
+                        StackFrame frame = st.GetFrame(0);
+                        int line = frame.GetFileLineNumber();
+                        scope.SetExtra("Exception Line", line);
+                        scope.SetExtra("Exception Message", ex.Message);
+                        scope.SetExtra("Exception StackTrace", ex.StackTrace);
+
+                    });
+                }
 
                    
                 }
