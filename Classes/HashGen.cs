@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Sentry;
 
 namespace UpdateServer
 {
@@ -41,45 +42,51 @@ namespace UpdateServer
             timr.Start();
             int i = 0;
             int errs = 0;
-
             int skip = 0;
             var errors = new List<string>();
             string[] allfiles = Directory.GetFiles(RustFolder.ToString(), "*", SearchOption.AllDirectories);
             files = allfiles.Count();
-
             foreach (string x in allfiles)
             {
-                string hash;
-
+                string hash = string.Empty;
                 string path = GetRelativePath(x, RustFolder.FullName);
-
-                hash = CalculateMD5(x);
-
-                if (!FileHashes.ContainsKey(path)) FileHashes.Add(path, hash);
-
+                try
+                {
+                    hash = CalculateMD5(x);
+                    if (!FileHashes.ContainsKey(path)) FileHashes.Add(path, hash);
+                }
+                catch (Exception ex)
+                {
+                    Errs.Add(x, ex.Message);
+                    SentrySdk.CaptureException(ex);
+                    skip++;
+                }
                 Console.WriteLine("Progress " + i + "  File:  " + hash + "|" + path);
                 i++;
             }
-
             File.WriteAllText("Hashes.json", JsonConvert.SerializeObject(FileHashes, Formatting.Indented));
             File.WriteAllText("Errors.json", JsonConvert.SerializeObject(Errs, Formatting.Indented));
             timr.Stop();
-            Console.WriteLine("Errors: " + errs + "\n" + "Skipped : " + skip + "\n" + "Seconds : " +
-                              timr.ElapsedMilliseconds / 1000);
-
+            Console.WriteLine("Errors: " + errs + "\n" + "Skipped : " + skip + "\n" + "Seconds : " + timr.ElapsedMilliseconds / 1000);
             return Task.CompletedTask;
         }
 
         private static string CalculateMD5(string filename)
         {
             byte[] hash;
-            using (FileStream inputStream = File.Open(filename, FileMode.Open))
+            try
             {
-                MD5 md5 = MD5.Create();
-
-                hash = md5.ComputeHash(inputStream);
+                using (FileStream inputStream = File.Open(filename, FileMode.Open))
+                {
+                    MD5 md5 = MD5.Create();
+                    hash = md5.ComputeHash(inputStream);
+                }
             }
-
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
+                throw;
+            }
             return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
         }
 

@@ -12,15 +12,21 @@ namespace UpdateServer.Classes
 
         public virtual T Dequeue()
         {
-            T item = queue.Dequeue();
-            OnChanged();
-            return item;
+            lock (queue)
+            {
+                T item = queue.Dequeue();
+                OnChanged();
+                return item;
+            }
         }
 
         public virtual void Enqueue(T item)
         {
-            queue.Enqueue(item);
-            OnChanged();
+            lock (queue)
+            {
+                queue.Enqueue(item);
+                OnChanged();
+            }
         }
 
         protected virtual void OnChanged()

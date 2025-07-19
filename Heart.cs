@@ -13,6 +13,11 @@ namespace UpdateServer
     {
         public delegate void sendmsg(string inp, string ip, bool hashes);
 
+        private static readonly object CurUpdatersLock = new object();
+        private static readonly object FileHashesLock = new object();
+        private static readonly object SingleStoredDeltaLock = new object();
+        private static readonly object ThreadListLock = new object();
+
         public static Dictionary<string, string> CurUpdaters = new Dictionary<string, string>();
 
         public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
@@ -62,16 +67,21 @@ namespace UpdateServer
 
         public static void addsingledelta(string a, string b)
         {
-            singleStoredDelta.Add(a, b);
+            lock (SingleStoredDeltaLock)
+            {
+                singleStoredDelta.Add(a, b);
+            }
         }
 
         public static void PoolMod(string thrd, bool add)
         {
-            if (add)
-                ThreadList.Add(thrd);
-            else
-                ThreadList.Remove(thrd);
-
+            lock (ThreadListLock)
+            {
+                if (add)
+                    ThreadList.Add(thrd);
+                else
+                    ThreadList.Remove(thrd);
+            }
             ShowPoolThreads();
         }
 
@@ -120,19 +130,20 @@ namespace UpdateServer
             if (!File.Exists("Hashes.json"))
             {
                 await new HashGen().Run();
-
-                Hashes = File.ReadAllText("Hashes.json");
-                FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+                lock (FileHashesLock)
+                {
+                    Hashes = File.ReadAllText("Hashes.json");
+                    FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+                }
             }
             else
             {
-                Hashes = File.ReadAllText("Hashes.json");
-                FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+                lock (FileHashesLock)
+                {
+                    Hashes = File.ReadAllText("Hashes.json");
+                    FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+                }
             }
-
-           
-           
-
             Console.WriteLine("Heart Started. Starting update server...");
             _server = new UpdateServerEntity();
         }

@@ -34,17 +34,34 @@ namespace UpdateServer
 
         public void AddMissMatchFilelist(Dictionary<string, string> nes)
         {
-            missmatchedFilehashes = nes;
+            lock (missmatchedFilehashes)
+            {
+                missmatchedFilehashes = nes;
+            }
         }
 
         public Dictionary<string, string> GetTrimmedList()
         {
-            foreach (var m in missmatchedFilehashes)
-                if (UpdateServerEntity.DeltaFileStorage.TryGetValue(m.Value, out var kk))
-                    MatchedDeltas.Add(kk.Keys.First(), kk.Values.First());
-                else
-                    TrimmedFileHashes.Add(m.Key, m.Value);
-
+            lock (missmatchedFilehashes)
+            {
+                foreach (var m in missmatchedFilehashes)
+                {
+                    if (UpdateServerEntity.DeltaFileStorage.TryGetValue(m.Value, out var kk))
+                    {
+                        lock (MatchedDeltas)
+                        {
+                            MatchedDeltas.Add(kk.Keys.First(), kk.Values.First());
+                        }
+                    }
+                    else
+                    {
+                        lock (TrimmedFileHashes)
+                        {
+                            TrimmedFileHashes.Add(m.Key, m.Value);
+                        }
+                    }
+                }
+            }
             return TrimmedFileHashes;
         }
     }

@@ -26,6 +26,9 @@ namespace UpdateServer.Classes
         private bool _disposed = false;
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
+        private static readonly object _dataToSendLock = new object();
+        private static readonly object _fileToDeleteLock = new object();
+
         public ClientProcessor(UpdateClient user)
         {
             _client = user;
@@ -53,7 +56,8 @@ namespace UpdateServer.Classes
                 _cts.Token.ThrowIfCancellationRequested();
                 int retrycount = 0;
                 send("Making ZipFile");
-                int allitems = _client.dataToSend.Count();
+                int allitems;
+                lock (_dataToSendLock) { allitems = _client.dataToSend.Count(); }
                 string zipFileName = _client.Clientdeltazip;
                 if (File.Exists(zipFileName)) File.Delete(zipFileName);
                 string clientRustFolder = _client.ClientFolder + "\\Rust\\";
@@ -70,7 +74,9 @@ namespace UpdateServer.Classes
                     var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
                     using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
                     {
-                        foreach (string x in _client.dataToSend)
+                        List<string> dataToSendCopy;
+                        lock (_dataToSendLock) { dataToSendCopy = new List<string>(_client.dataToSend); }
+                        foreach (string x in dataToSendCopy)
                             try
                             {
                                 _cts.Token.ThrowIfCancellationRequested();
@@ -90,7 +96,7 @@ namespace UpdateServer.Classes
                             }
                     }
                     deltaFilesSpan.Finish();
-                    _client.filetoDelete.Add(zipFileName);
+                    lock (_fileToDeleteLock) { _client.filetoDelete.Add(zipFileName); }
                 }
                 catch (Exception e)
                 {
@@ -220,7 +226,7 @@ namespace UpdateServer.Classes
                             }
                             fileDeltaSpan.Finish();
 
-                            _client.dataToSend.Add(deltaFilePath);
+                            lock (_dataToSendLock) { _client.dataToSend.Add(deltaFilePath); }
                         }
                     }
                     catch (Exception e)
@@ -335,17 +341,22 @@ namespace UpdateServer.Classes
                 string deltaOutputDirectory = Path.GetDirectoryName(destpath);
                 if (!Directory.Exists(deltaOutputDirectory))
                     Directory.CreateDirectory(deltaOutputDirectory);
-
-                File.Copy(deltapath, destpath);
-                _client.dataToSend.Add(destpath);
+                try
+                {
+                    File.Copy(deltapath, destpath);
+                    lock (_dataToSendLock) { _client.dataToSend.Add(destpath); }
+                }
+                catch (Exception ex)
+                {
+                    SentrySdk.CaptureException(ex);
+                    FileLogger.LogError($"Error copying delta file: {ex.Message}");
+                }
             }
-
             if (_client.MatchedDeltas.Count >= _client.missmatchedFilehashes.Count)
             {
                 EndThisOne();
                 return;
             }
-
             CreateDeltaforClient();
         }
 
