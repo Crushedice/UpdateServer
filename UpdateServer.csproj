@@ -32,6 +32,7 @@
     <DocumentationFile>
     </DocumentationFile>
     <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>x64</PlatformTarget>
@@ -42,6 +43,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>
@@ -57,7 +59,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>latest</LangVersion>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
@@ -68,9 +70,9 @@
     </DefineConstants>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Optimize>false</Optimize>
-    <DebugType>portable</DebugType>
+    <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
+    <LangVersion>latest</LangVersion>
     <ErrorReport>send</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
@@ -78,18 +80,45 @@
     <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
   </PropertyGroup>
   <PropertyGroup />
+  <!-- We recommend only using these features for release builds. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Configure Sentry org and project -->
+    <SentryOrg>sentry</SentryOrg>
+    <SentryProject>updateserver</SentryProject>
+    <SentryUrl>https://logging.rusticaland.ovh</SentryUrl>
+    <!--
+    Each of the below features are opt-in.
+    Enable the features you wish to use.
+  -->
+    <!-- Automatically creates a release when building your application. -->
+    <SentryCreateRelease>true</SentryCreateRelease>
+    <!-- Automatically associates commits with the release. -->
+    <SentrySetCommits>true</SentrySetCommits>
+    <!-- Optionally provide explicit flags to the set-commits command -->
+    <SentrySetCommitOptions>--local</SentrySetCommitOptions>
+    <!-- Sends symbols to Sentry, enabling symbolication of stack traces. -->
+    <SentryUploadSymbols>true</SentryUploadSymbols>
+    <!-- Sends sources to Sentry, enabling display of source context. -->
+    <SentryUploadSources>true</SentryUploadSources>
+    <!-- If you are targeting Android, sends proguard mapping file to Sentry. -->
+    <SentryUploadAndroidProguardMapping>true</SentryUploadAndroidProguardMapping>
+  </PropertyGroup>
   <PropertyGroup>
     <NoWin32Manifest>true</NoWin32Manifest>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
     <EmbeddedResourceUseDependentUponConvention>false</EmbeddedResourceUseDependentUponConvention>
   </PropertyGroup>
+  <PropertyGroup>
+    <SentryOrg>sentry</SentryOrg>
+    <SentryProject>updateserver</SentryProject>
+    <SentryCliPath>$(SolutionDir)sentry-cli.exe</SentryCliPath>
+  </PropertyGroup>
+  <Target Name="SentryUploadDebugSymbols" AfterTargets="Build">
+    <Exec Command="&quot;$(SentryCliPath)&quot; upload-dif --org $(SentryOrg) --project $(SentryProject) &quot;$(TargetDir)*.pdb&quot;" />
+  </Target>
   <ItemGroup>
     <Reference Include="AutoUpdater.NET, Version=1.9.2.0, Culture=neutral, PublicKeyToken=501435c91b35f4bc, processorArchitecture=MSIL">
       <HintPath>packages\Autoupdater.NET.Official.1.9.2\lib\net462\AutoUpdater.NET.dll</HintPath>
-    </Reference>
-    <Reference Include="Dia2Lib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>packages\Microsoft.Diagnostics.Tracing.TraceEvent.3.1.23\lib\netstandard2.0\Dia2Lib.dll</HintPath>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
     <Reference Include="FastRsync, Version=2.4.3.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\FastRsyncNet.2.4.3\lib\net462\FastRsync.dll</HintPath>
@@ -137,7 +166,6 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\Users\Crushed\Source\Repos\Rusticaland-Standalone-Updater\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="PresentationFramework" />
     <Reference Include="Sentry, Version=5.12.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0, processorArchitecture=MSIL">
       <HintPath>packages\Sentry.5.12.0\lib\net462\Sentry.dll</HintPath>
     </Reference>
@@ -153,16 +181,12 @@
     <Reference Include="System.Collections.Immutable, Version=9.0.0.7, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>packages\System.Collections.Immutable.9.0.7\lib\net462\System.Collections.Immutable.dll</HintPath>
     </Reference>
-    <Reference Include="System.ComponentModel.DataAnnotations" />
-    <Reference Include="System.Configuration" />
     <Reference Include="System.Core">
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Data" />
     <Reference Include="System.Diagnostics.DiagnosticSource, Version=6.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Diagnostics.DiagnosticSource.6.0.0\lib\net461\System.Diagnostics.DiagnosticSource.dll</HintPath>
     </Reference>
-    <Reference Include="System.Drawing" />
     <Reference Include="System.IO.Compression">
       <Private>True</Private>
     </Reference>
@@ -178,8 +202,6 @@
     <Reference Include="System.Memory, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
     </Reference>
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Numerics" />
     <Reference Include="System.Numerics.Vectors, Version=4.1.6.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll</HintPath>
     </Reference>
@@ -194,7 +216,6 @@
       <Private>True</Private>
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Resources.Extensions">
       <HintPath>packages\System.Resources.Extensions.4.6.0\lib\netstandard2.0\System.Resources.Extensions.dll</HintPath>
     </Reference>
@@ -213,16 +234,9 @@
     <Reference Include="System.Windows.Forms">
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Xaml" />
-    <Reference Include="System.Xml" />
-    <Reference Include="TraceReloggerLib, Version=0.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>packages\Microsoft.Diagnostics.Tracing.TraceEvent.3.1.23\lib\netstandard2.0\TraceReloggerLib.dll</HintPath>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </Reference>
     <Reference Include="WatsonTcp, Version=6.0.10.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\WatsonTcp.6.0.10\lib\net48\WatsonTcp.dll</HintPath>
     </Reference>
-    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Classes\ClientProcessor.cs" />

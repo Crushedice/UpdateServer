@@ -400,21 +400,18 @@ public class UpdateServerEntity
 
                 // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
                 if (!server.IsClientConnected(guid))
+                {
+                    ClientProcessor pl= Occupants.FirstOrDefault(x => x._client._guid == guid);
+
+                    pl.Dispose();
+
                     Directory.Delete(x, true);
+                }
             }
             catch (Exception ex)
             {
 
-                SentrySdk.CaptureException(ex, scope =>
-                {
-                    StackTrace st = new StackTrace(ex, true);
-                    StackFrame frame = st.GetFrame(0);
-                    int line = frame.GetFileLineNumber();
-                    scope.SetExtra("Exception Line", line);
-                    scope.SetExtra("Exception Message", ex.Message);
-                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-                });
+                SentrySdk.CaptureException(ex);
             }
                     
         }
@@ -437,6 +434,8 @@ public class UpdateServerEntity
                 Directory.CreateDirectory(clientfolder);
             string Clientdeltazip = clientfolder + @"\" + fixedip + ".zip";
 
+
+
             lock (CurrentClientsLock)
             {
                 CurrentClients.Add(e.Client.Guid,
@@ -445,6 +444,8 @@ public class UpdateServerEntity
             }
 
             _ = Task.Run(async () => await quickhashes(e.Client.Guid));
+
+            SentrySdk.CaptureMessage($"Client {e.Client.Guid} connected from {e.Client.IpPort} with folder {clientfolder} and {Clientdeltazip}");
 
         }
         catch (Exception ex)
@@ -546,20 +547,23 @@ public class UpdateServerEntity
     
     private static async Task CreateZipFile(UpdateClient _client ,bool additionalfiles = false)
         {
+
             int retrycount = 0;
-            // Create and open a new ZIP file
-           
             int allitems = _client.dataToSend.Count();
             string zipFileName = _client.Clientdeltazip;
-            string zipFileName2 =   _client.ClientFolder + "\\additionalfiles.zip" ;
+            string zipFileName2 =   _client.ClientFolder + "\\additionalfiles.zip";
             if (File.Exists(zipFileName)) File.Delete(zipFileName2);
             string clientRustFolder = _client.ClientFolder + "\\Rust\\";
 
             int itemcount = 0;
-
-
-            if (additionalfiles)
+            SentrySdk.CaptureMessage("Additional Zip", scope =>
             {
+                // Replace the problematic line with the following:
+                SetExtrasFromList(scope, _client.dataToAdd);
+                scope.AddBreadcrumb(zipFileName2);
+            });
+
+
                 using (ZipArchive zip = ZipFile.Open(zipFileName2, ZipArchiveMode.Create))
                 {
                     foreach (string y in _client.dataToAdd)
@@ -574,93 +578,48 @@ public class UpdateServerEntity
                          zip.CreateEntryFromFile(realfilepath, fixedname, CompressionLevel.Optimal);
                          itemcount++;
 
-                        
-
                     }
 
                 }
+
                 _client.filetoDelete.Add(zipFileName2);
                 SendZipFile(_client,zipFileName2,true);
 
-                return;
-            }
-        starrt:
-
+              
             
-                using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
-                {
-                    foreach (string x in _client.dataToSend)
-                        try
-                        {
-                            if (!File.Exists(x)) continue;
-                            string relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
-                            string fixedname = relativePath.Replace('\\', '/');
-                            zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
-                            itemcount++;
-
-                          
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message, "Errors.txt");
-                            FileLogger.LogInfo(ex.Message);
-                    SentrySdk.CaptureException(ex, scope =>
-                    {
-                        StackTrace st = new StackTrace(ex, true);
-                        StackFrame frame = st.GetFrame(0);
-                        int line = frame.GetFileLineNumber();
-                        scope.SetExtra("Exception Line", line);
-                        scope.SetExtra("Exception Message", ex.Message);
-                        scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-                    });
-                }
-
-                   
-                }
-                _client.filetoDelete.Add(zipFileName);
-                SendZipFile(_client,zipFileName);
-
-            return;
-
-        retrying:
-
-            if (retrycount > 5)
-            {
-                //    FileLogger.CLog(DateTime.Now.ToString("MM/dd HH:mm") + "  abort of packing zip after  " + retrycount + " Retry ", "Finished.txt");
-               
-                return;
-            }
-
-            await Task.Delay(10000);
-            retrycount++;
-            goto starrt;
+       
         }
     
     private static async Task SendZipFile(UpdateClient _client ,string zip, bool stored = false)
     {
-
-        if (stored)
+        var transaction = SentrySdk.StartTransaction("SendZipFile", "task");
+        try
         {
-            using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                       FileOptions.Asynchronous))
+            if (stored)
             {
-                await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                           FileOptions.Asynchronous))
+                {
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source);
+                }
             }
-
-          
-
+            else
+            {
+                var metadata = new Dictionary<string, object>();
+                metadata.Add("1", "2");
+                using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
+                           FileOptions.Asynchronous))
+                {
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
+                }
+            }
+            transaction.Finish(SpanStatus.Ok);
         }
-        else
+        catch (Exception ex)
         {
-            
-        var metadata = new Dictionary<string, object>();
-        metadata.Add("1", "2");
-        using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                   FileOptions.Asynchronous))
-        {
-            await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata);
-        }
+            SentrySdk.CaptureException(ex);
+            transaction.Finish(SpanStatus.InternalError);
+            throw;
         }
     }
     
@@ -754,5 +713,10 @@ public class UpdateServerEntity
         }
 
         return new SyncResponse(req, "null");
+    }
+    public static void SetExtrasFromList(Scope scope, List<string> dataToSend)
+    {
+        var extras = dataToSend.ToDictionary(item => item, item => (object?)null);
+        scope.SetExtras(extras);
     }
 }

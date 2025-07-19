@@ -40,7 +40,7 @@ namespace UpdateServer
         private static void Main(string[] args)
         {
             // Initialize Sentry SDK
-            using (SentrySdk.Init(o =>
+            SentrySdk.Init(o =>
             {
                 // Tells which project in Sentry to send events to:
                 o.Dsn = "https://f1a2aed8eae385969e335e8f83a5e7f8@logging.rusticaland.ovh/2";
@@ -57,12 +57,12 @@ namespace UpdateServer
                 o.AddDiagnosticSourceIntegration();
                 o.ProfilesSampleRate = 1.0;
                 o.AttachStacktrace = true;
-                o.DiagnosticLevel = SentryLevel.Info;
+                o.DiagnosticLevel = SentryLevel.Debug;
+            });
 
-           
 
-                // Configure WinForms to throw exceptions so Sentry can capture them.
-                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+            // Configure WinForms to throw exceptions so Sentry can capture them.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
             //SentrySdk.CauseCrash(CrashType.Managed); 
             // Add breadcrumb to track application start
             SentrySdk.AddBreadcrumb("Application started", "app.start");
@@ -78,7 +78,7 @@ namespace UpdateServer
 
                 if (input.Key == ConsoleKey.S) break;
             }
-            }))
+            
 
                 // Add breadcrumb when application exits normally
                 SentrySdk.AddBreadcrumb("Application exiting normally", "app.exit");

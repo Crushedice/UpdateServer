@@ -9,32 +9,116 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using UpdateServer.Classes;
 
 namespace UpdateServer.Classes
 {
-    public class ClientProcessor
+    public class ClientProcessor : IDisposable
     {
+        public string tcpipport;
         private ClientProcessor _instanceRef;
         private bool _running;
         private int NrInQueue;
-        public string tcpipport;
+        public UpdateClient _client { get; }
+
+        private bool _disposed = false;
+        private CancellationTokenSource _cts = new CancellationTokenSource();
 
         public ClientProcessor(UpdateClient user)
         {
             _client = user;
             tcpipport = user.ClientIP;
             _instanceRef = this;
-            SentrySdk.CaptureMessage("New Client Created");
+            SentrySdk.CaptureMessage("New Client Created", s =>
+            {
+                s.SetExtra("ClientGuid", _client._guid.ToString());
+                s.SetExtra("ClientIP", _client.ClientIP);
+                s.SetExtra("ClientFolder", _client.ClientFolder);
+                s.SetExtra("ClientDeltaZip", _client.Clientdeltazip);
+            });
         }
 
-        ~ClientProcessor()
+        private async Task CreateZipFile(bool additionalfiles = false)
         {
-                       SentrySdk.CaptureMessage("ClientProcessor Disposed");
-        }
+            // Start Sentry transaction for zip creation
+            var transaction = SentrySdk.StartTransaction(
+                "zip_creation",
+                additionalfiles ? "client.additionalfiles_zip" : "client.deltafiles_zip",
+                $"Creating zip file for client {_client._guid} (additionalfiles={additionalfiles})"
+            );
+            try
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                int retrycount = 0;
+                send("Making ZipFile");
+                int allitems = _client.dataToSend.Count();
+                string zipFileName = _client.Clientdeltazip;
+                if (File.Exists(zipFileName)) File.Delete(zipFileName);
+                string clientRustFolder = _client.ClientFolder + "\\Rust\\";
+                SentrySdk.CaptureMessage("Deltazip", scope =>
+                {
+                    // Replace the problematic line with the following:
+                    UpdateServerEntity.SetExtrasFromList(scope, _client.dataToSend);
+                    scope.AddBreadcrumb(zipFileName);
 
-        private UpdateClient _client { get; }
+                });
+                int itemcount = 0;
+                try
+                {
+                    var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
+                    using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
+                    {
+                        foreach (string x in _client.dataToSend)
+                            try
+                            {
+                                _cts.Token.ThrowIfCancellationRequested();
+                                if (!File.Exists(x)) continue;
+                                string relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
+                                string fixedname = relativePath.Replace('\\', '/');
+                                zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
+                                itemcount++;
+
+                                send($"Packing Update: {itemcount} / {allitems}");
+                            }
+                            catch (Exception ex)
+                            {
+                                SentrySdk.CaptureException(ex);
+                                Console.WriteLine($"Error packing file: {ex.Message}");
+                                FileLogger.LogError($"Error packing file: {ex.Message}");
+                            }
+                    }
+                    deltaFilesSpan.Finish();
+                    _client.filetoDelete.Add(zipFileName);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error in pack zip: {e.Message}");
+                    FileLogger.LogError($"Error in pack zip: {e.Message}");
+                    SentrySdk.CaptureException(e);
+                }
+                await SendZipFile(zipFileName, false, _cts.Token);
+                transaction.Finish();
+            }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("CreateZipFile cancelled");
+                transaction.Finish();
+            }
+            catch (Exception ex)
+            {
+                FileLogger.LogError("Error in CreateZipFile");
+                SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
+                throw;
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
+        }
 
         public void Notify()
         {
@@ -60,43 +144,40 @@ namespace UpdateServer.Classes
             return Task.FromResult(BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant());
         }
 
-        private string FixPath(string path)
-        {
-            char[] separators = { '\\','/'};
-            int index = path.IndexOfAny(separators);        
-            path = path[index].ToString() == "\\" ? path.Replace('/', '\\') : path.Replace('\\', '/');
-            return path;
-        }
         private async void CreateDeltaforClient()
         {
-            SentrySdk.AddBreadcrumb("CreateDeltaFor client");
-            var transactionId = SentrySdk.StartTransaction(
+            // Start Sentry transaction for delta creation
+            var transaction = SentrySdk.StartTransaction(
                 "delta_creation",
-                "client.processing",
-                $"Creating delta files for client {_client._guid}");
+                "client.delta_creation",
+                $"Creating delta files for client {_client._guid}"
+            );
+            SentrySdk.AddBreadcrumb("CreateDeltaFor client");
             try
             {
+                _cts.Token.ThrowIfCancellationRequested();
                 send("Starting Delta Creation");
-                SentryPerformanceMonitor.SetUserContext(_client._guid.ToString(), _client.ClientIP);
+
                 string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
                 int allc = allDeltas.Count();
                 int prg = 0;
 
                 string _deltahash = "";
                 string deltaFilePath = "";
-                SentryPerformanceMonitor.RecordMetric("delta_files_count", allc);
-                var deltaProcessingSpanId = transactionId.StartChild(
-                    "delta.file_processing",
-                    $"Processing {allc} delta files");
+
+                var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
+
                 foreach (string x in allDeltas)
                 {
-                    if(!UpdateServerEntity.server.IsClientConnected(this._client._guid))
+                    _cts.Token.ThrowIfCancellationRequested();
+                    if (!UpdateServerEntity.server.IsClientConnected(this._client._guid))
                     {
-                        SentrySdk.CaptureMessage("Client Disconnected during Delta Creation", s => { 
-                        s.SetExtra("ClientGuid", _client._guid.ToString());
+                        SentrySdk.CaptureMessage("Client Disconnected during Delta Creation", s =>
+                        {
+                            s.SetExtra("ClientGuid", _client._guid.ToString());
                         });
-                        deltaProcessingSpanId.Finish();
-                        transactionId.Finish();
+                        deltaFilesSpan.Finish();
+                        transaction.Finish();
                         return;
                     }
 
@@ -105,7 +186,7 @@ namespace UpdateServer.Classes
 
                     string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") +
                                          relativePath.Replace(".octosig", string.Empty);
-                    string origfile= FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\",@"\").Replace(@"\Rust\",string.Empty);
+                    string origfile = FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\", @"\").Replace(@"\Rust\", string.Empty);
 
                     string OrigPath = origfile;
 
@@ -121,6 +202,8 @@ namespace UpdateServer.Classes
                             string deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
                             if (!Directory.Exists(deltaOutputDirectory))
                                 Directory.CreateDirectory(deltaOutputDirectory);
+
+                            var fileDeltaSpan = transaction.StartChild("delta.file", $"Delta for {filename}");
                             DeltaBuilder deltaBuilder = new DeltaBuilder();
                             using (FileStream newFileStream =
                                    new FileStream(newFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -134,6 +217,7 @@ namespace UpdateServer.Classes
                                         new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)))
                                     .ConfigureAwait(false);
                             }
+                            fileDeltaSpan.Finish();
 
                             _client.dataToSend.Add(deltaFilePath);
                         }
@@ -145,19 +229,13 @@ namespace UpdateServer.Classes
                         Console.WriteLine($"Error in Create Delta: {e.Message}");
                         SentrySdk.CaptureException(e, scope =>
                         {
-                            
-                            StackTrace st = new StackTrace(e , true);
-                            StackFrame frame = st.GetFrame(0);
-                            int line = frame.GetFileLineNumber();
-                            scope.SetExtra("Exception Line", line);
-                            scope.SetExtra("Exception Message", e.Message);
-                            scope.SetExtra("Exception StackTrace", e.StackTrace);
-
+                            scope.SetExtra("File", x);
+                            scope.SetExtra("ClientGuid", _client._guid.ToString());
                         });
                     }
-
                     try
                     {
+                        var hashSpan = transaction.StartChild("delta.hash", $"Hash for {deltaFilePath}");
                         _deltahash = await CalculateMD5(deltaFilePath);
                         var _sighash = _client.missmatchedFilehashes.FirstOrDefault(f => f.Key == origfile).Value;
                         if (!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
@@ -165,21 +243,17 @@ namespace UpdateServer.Classes
 
                         var nee = new Dictionary<string, string>();
                         nee.Add(_deltahash, OrigPath);
-                        if (_sighash != null);
-                            if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
-                                UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
+                        if (_sighash != null) ;
+                        if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
+                            UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
+                        hashSpan.Finish();
                     }
                     catch (Exception d)
                     {
                         SentrySdk.CaptureException(d, scope =>
                         {
-                            StackTrace st = new StackTrace(d, true);
-                            StackFrame frame = st.GetFrame(0);
-                            int line = frame.GetFileLineNumber();
-                            scope.SetExtra("Exception Line", line);
-                            scope.SetExtra("Exception Message", d.Message);
-                            scope.SetExtra("Exception StackTrace", d.StackTrace);
-
+                            scope.SetExtra("DeltaFilePath", deltaFilePath);
+                            scope.SetExtra("ClientGuid", _client._guid.ToString());
                         });
                         Console.WriteLine(d.InnerException);
                     }
@@ -189,160 +263,34 @@ namespace UpdateServer.Classes
                     UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
                 }
 
+                deltaFilesSpan.Finish();
+
                 SentrySdk.CaptureMessage("DeltaFinished", s =>
                 {
-                   s.SetTag("ClientGuid", _client._guid.ToString());
+                    s.SetTag("ClientGuid", _client._guid.ToString());
                     s.SetExtra("DeltaFilesCount", allc);
                     s.SetExtra("DeltaFilePath", deltaFilePath);
                 });
-                deltaProcessingSpanId.Finish();
-                EndThisOne();
-                transactionId.Finish();
-               
 
+                EndThisOne();
+                transaction.Finish();
+
+            }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("CreateDeltaforClient cancelled");
+                transaction.Finish();
             }
             catch (Exception ex)
             {
-                transactionId.Finish();
                 SentrySdk.CaptureException(ex, scope =>
                 {
-                    StackTrace st = new StackTrace(ex, true);
-                    StackFrame frame = st.GetFrame(0);
-                    int line = frame.GetFileLineNumber();
-                    scope.SetExtra("Exception Line", line);
+                    scope.SetExtra("ClientGuid", _client._guid.ToString());
                     scope.SetExtra("Exception Message", ex.Message);
                     scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
                 });
                 FileLogger.LogError("Error in CreateDeltaforClient");
-                
-            }
-        }
-
-        public async Task CreateZipFile(bool additionalfiles = false)
-        {
-            // Start Sentry transaction for zip creation
-            var transaction = SentrySdk.StartTransaction(
-                "zip_creation",
-                additionalfiles ? "client.additionalfiles_zip" : "client.deltafiles_zip",
-                $"Creating zip file for client {_client._guid} (additionalfiles={additionalfiles})"
-            );
-            try
-            {
-                int retrycount = 0;
-                send("Making ZipFile");
-                int allitems = _client.dataToSend.Count();
-                string zipFileName = _client.Clientdeltazip;
-                string zipFileName2 = _client.ClientFolder + "\\additionalfiles.zip";
-                if (File.Exists(zipFileName)) File.Delete(zipFileName);
-                string clientRustFolder = _client.ClientFolder + "\\Rust\\";
-
-                int itemcount = 0;
-
-                if (additionalfiles)
-                {
-                    var addFilesSpan = transaction.StartChild("zip.additionalfiles", "Packing additional files");
-                    using (ZipArchive zip = ZipFile.Open(zipFileName2, ZipArchiveMode.Create))
-                    {
-                        foreach (string y in _client.dataToAdd)
-                        {
-                            if (!File.Exists(y)) continue;
-
-                            string relativePath = y.Replace("Rust\\", string.Empty);
-                            string fixedname = relativePath.Replace('\\', '/');
-                            zip.CreateEntryFromFile(y, fixedname, CompressionLevel.Optimal);
-                            itemcount++;
-
-                            send($"Packing Update: {itemcount} / {allitems}");
-                        }
-                    }
-                    addFilesSpan.Finish();
-                    _client.filetoDelete.Add(zipFileName2);
-                    await SendZipFile(zipFileName2, true);
-                    transaction.Finish();
-                    return;
-                }
-            starrt:
-                try
-                {
-                    var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
-                    using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
-                    {
-                        foreach (string x in _client.dataToSend)
-                            try
-                            {
-                                if (!File.Exists(x)) continue;
-                                string relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
-                                string fixedname = relativePath.Replace('\\', '/');
-                                zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
-                                itemcount++;
-
-                                send($"Packing Update: {itemcount} / {allitems}");
-                            }
-                            catch (Exception ex)
-                            {
-                                SentrySdk.CaptureException(ex, scope =>
-                                {
-                                    StackTrace st = new StackTrace(ex, true);
-                                    StackFrame frame = st.GetFrame(0);
-                                    int line = frame.GetFileLineNumber();
-                                    scope.SetExtra("Exception Line", line);
-                                    scope.SetExtra("Exception Message", ex.Message);
-                                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-                                });
-                                Console.WriteLine($"Error packing file: {ex.Message}");
-                                FileLogger.LogError($"Error packing file: {ex.Message}");
-                            }
-                    }
-                    deltaFilesSpan.Finish();
-                    _client.filetoDelete.Add(zipFileName);
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Error in pack zip: {e.Message}");
-                    FileLogger.LogError($"Error in pack zip: {e.Message}");
-                    SentrySdk.CaptureException(e, scope =>
-                    {
-                        StackTrace st = new StackTrace(e, true);
-                        StackFrame frame = st.GetFrame(0);
-                        int line = frame.GetFileLineNumber();
-                        scope.SetExtra("Exception Line", line);
-                        scope.SetExtra("Exception Message", e.Message);
-                        scope.SetExtra("Exception StackTrace", e.StackTrace);
-
-                    });
-                    goto retrying;
-                }
-                await SendZipFile(zipFileName);
-                transaction.Finish();
-                return;
-            retrying:
-                if (retrycount > 5)
-                {
-                    UpdateServerEntity.EndCall(_client, this, zipFileName, true);
-                    transaction.Finish();
-                    return;
-                }
-                await Task.Delay(10000);
-                retrycount++;
-                goto starrt;
-            }
-            catch (Exception ex)
-            {
-                FileLogger.LogError("Error in CreateZipFile");
-                SentrySdk.CaptureException(ex, scope =>
-                {
-                    StackTrace st = new StackTrace(ex, true);
-                    StackFrame frame = st.GetFrame(0);
-                    int line = frame.GetFileLineNumber();
-                    scope.SetExtra("Exception Line", line);
-                    scope.SetExtra("Exception Message", ex.Message);
-                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-                });
                 transaction.Finish(ex);
-                throw;
             }
             finally
             {
@@ -357,7 +305,13 @@ namespace UpdateServer.Classes
             _ = CreateZipFile();
         }
 
-        
+        private string FixPath(string path)
+        {
+            char[] separators = { '\\', '/' };
+            int index = path.IndexOfAny(separators);
+            path = path[index].ToString() == "\\" ? path.Replace('/', '\\') : path.Replace('\\', '/');
+            return path;
+        }
 
         private string GetRelativePath(string filespec, string folder)
         {
@@ -376,7 +330,7 @@ namespace UpdateServer.Classes
             foreach (var t in _client.MatchedDeltas)
             {
                 string deltapath = UpdateServerEntity.DeltaStorage + "\\" + t.Key;
-                string destpath = _client.ClientFolder + "\\Rust\\"+ t.Value+".octodelta";
+                string destpath = _client.ClientFolder + "\\Rust\\" + t.Value + ".octodelta";
                 string deltaOutputDirectory = Path.GetDirectoryName(destpath);
                 if (!Directory.Exists(deltaOutputDirectory))
                     Directory.CreateDirectory(deltaOutputDirectory);
@@ -396,12 +350,12 @@ namespace UpdateServer.Classes
 
         private void send(string msg)
         {
-            Task.Run(() =>  UpdateServerEntity.SendProgress(_client._guid, msg));
-            SentrySdk.AddBreadcrumb(msg,"ServerToClient",_client._guid.ToString(),null,BreadcrumbLevel.Info);
+            Task.Run(() => UpdateServerEntity.SendProgress(_client._guid, msg), _cts.Token);
+            SentrySdk.AddBreadcrumb(msg, "ServerToClient", _client._guid.ToString(), null, BreadcrumbLevel.Info);
         }
 
-        private async Task SendZipFile(string zip, bool stored = false)
-        {   
+        private async Task SendZipFile(string zip, bool stored = false, CancellationToken cancellationToken = default)
+        {
             // Start Sentry transaction for sending zip file
             var transaction = SentrySdk.StartTransaction(
                 "send_zip_file",
@@ -410,6 +364,7 @@ namespace UpdateServer.Classes
             );
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var fileInfo = new FileInfo(zip);
                 if (stored)
                 {
@@ -435,6 +390,11 @@ namespace UpdateServer.Classes
                 UpdateServerEntity.EndCall(_client, this, zip);
                 transaction.Finish();
             }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("SendZipFile cancelled");
+                transaction.Finish();
+            }
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex, scope =>
@@ -445,7 +405,6 @@ namespace UpdateServer.Classes
                     scope.SetExtra("Exception Line", line);
                     scope.SetExtra("Exception Message", ex.Message);
                     scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
                 });
                 transaction.Finish(ex);
                 throw;
@@ -455,6 +414,34 @@ namespace UpdateServer.Classes
                 if (!transaction.IsFinished)
                     transaction.Finish();
             }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+            if (disposing)
+            {
+                if (_cts != null)
+                {
+                    _cts.Cancel();
+                    _cts.Dispose();
+                }
+            }
+            // Dispose unmanaged resources here if any
+            SentrySdk.CaptureMessage("ClientProcessor Disposed via Dispose()");
+            _disposed = true;
+        }
+
+        ~ClientProcessor()
+        {
+            Dispose(false);
         }
     }
 }
