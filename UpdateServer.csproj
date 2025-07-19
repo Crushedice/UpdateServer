@@ -87,7 +87,7 @@
     </DefineConstants>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Optimize>false</Optimize>
-    <DebugType>embedded</DebugType>
+    <DebugType>portable</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <LangVersion>latest</LangVersion>
     <ErrorReport>send</ErrorReport>
@@ -142,9 +142,6 @@
   <PropertyGroup>
     <SignManifests>true</SignManifests>
   </PropertyGroup>
-  <Target Name="SentryUploadDebugSymbols" AfterTargets="Build">
-    <Exec Command="&quot;$(SentryCliPath)&quot; upload-dif --org $(SentryOrg) --project $(SentryProject) &quot;$(TargetDir)*.pdb&quot;" />
-  </Target>
   <ItemGroup>
     <Reference Include="AutoUpdater.NET, Version=1.9.2.0, Culture=neutral, PublicKeyToken=501435c91b35f4bc, processorArchitecture=MSIL">
       <HintPath>packages\Autoupdater.NET.Official.1.9.2\lib\net462\AutoUpdater.NET.dll</HintPath>
