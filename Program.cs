@@ -59,7 +59,10 @@ namespace UpdateServer
                 o.AttachStacktrace = true;
                 o.DiagnosticLevel = SentryLevel.Debug;
             });
-
+            SentrySdk.ConfigureScope(s =>
+            {
+                s.AddAttachment("./UpdateServer.pdb");
+            })  ;
 
             // Configure WinForms to throw exceptions so Sentry can capture them.
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);

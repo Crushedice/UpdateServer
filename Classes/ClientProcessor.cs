@@ -127,6 +127,7 @@ namespace UpdateServer.Classes
 
         public void StartupThisOne()
         {
+            SentrySdk.CaptureMessage("Startupthisone");
             _running = true;
             PrepairClient();
         }

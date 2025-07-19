@@ -269,7 +269,7 @@ public class UpdateServerEntity
                 if (Occupants.Count < 3)
                 {
                     Puts("Occupants less then 3. Processing commence ");
-                    SentrySdk.AddBreadcrumb("Occupants less than 3, processing next client in queue.");
+                    SentrySdk.CaptureMessage("Occupants less than 3, processing next client in queue.");
                     ClientProcessor nextone = WaitingClients.Dequeue();
                     Occupants.Add(nextone);
                     nextone.StartupThisOne();
@@ -282,16 +282,7 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex, scope =>
-            {
-                StackTrace st = new StackTrace(ex, true);
-                StackFrame frame = st.GetFrame(0);
-                int line = frame.GetFileLineNumber();
-                scope.SetExtra("Exception Line", line);
-                scope.SetExtra("Exception Message", ex.Message);
-                scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-            });
+            SentrySdk.CaptureException(ex);
         }
     }
 
@@ -387,33 +378,64 @@ public class UpdateServerEntity
         string[] AllDirs = Directory.GetDirectories("ClientFolders");
         foreach (string x in AllDirs)
         {
-
             try
             {
                 string thisone = x.Split(Path.DirectorySeparatorChar).Last();
 
-                if (thisone.Contains(".")) return;
+                if (thisone.Contains(".")) continue;
 
                 Guid guid = Guid.Parse(thisone);
 
-                // Console.WriteLine("Checking User " + thisone);
-
-                // Puts($"PathDirName: {thisone} , and \n usrip : {server.ListClients().Where(dx => dx.Guid == guid)}");
                 if (!server.IsClientConnected(guid))
                 {
-                    ClientProcessor pl= Occupants.FirstOrDefault(x => x._client._guid == guid);
+                    // End any tasks/processors using files in this directory
+                    lock (OccupantsLock)
+                    {
+                        var processorsToEnd = Occupants.Where(proc => proc._client != null && proc._client._guid == guid).ToList();
+                        foreach (var proc in processorsToEnd)
+                        {
+                            try
+                            {
+                                proc.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                SentrySdk.CaptureException(ex);
+                            }
+                            Occupants.Remove(proc);
+                        }
+                    }
 
-                    pl.Dispose();
-
-                    Directory.Delete(x, true);
+                    // Try to delete directory, retry if IO exceptions occur
+                    int maxRetries = 5;
+                    int delayMs = 500;
+                    for (int attempt = 0; attempt < maxRetries; attempt++)
+                    {
+                        try
+                        {
+                            if (Directory.Exists(x))
+                            {
+                                Directory.Delete(x, true);
+                            }
+                            break;
+                        }
+                        catch (IOException ioEx)
+                        {
+                            SentrySdk.CaptureException(ioEx);
+                            Thread.Sleep(delayMs);
+                        }
+                        catch (UnauthorizedAccessException uaEx)
+                        {
+                            SentrySdk.CaptureException(uaEx);
+                            Thread.Sleep(delayMs);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
-
                 SentrySdk.CaptureException(ex);
             }
-                    
         }
     }
 

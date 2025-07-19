@@ -39,3 +39,5 @@ S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.csproj.GenerateResour
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.exe
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.pdb
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.csproj.CoreCompileInputs.cache
+S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.GeneratedMSBuildEditorConfig.editorconfig
+S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\Sentry.Attributes.cs
