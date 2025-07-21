@@ -226,16 +226,7 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex, scope =>
-            {
-                StackTrace st = new StackTrace(ex, true);
-                StackFrame frame = st.GetFrame(0);
-                int line = frame.GetFileLineNumber();
-                scope.SetExtra("Exception Line", line);
-                scope.SetExtra("Exception Message", ex.Message);
-                scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-            });
+            SentrySdk.CaptureException(ex);
             Puts($"Error in quickhashes: {ex.Message}");
         }
     }
@@ -250,16 +241,7 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex, scope =>
-            {
-                StackTrace st = new StackTrace(ex, true);
-                StackFrame frame = st.GetFrame(0);
-                int line = frame.GetFileLineNumber();
-                scope.SetExtra("Exception Line", line);
-                scope.SetExtra("Exception Message", ex.Message);
-                scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-            });
+            SentrySdk.CaptureException(ex);
             transaction.Finish(SpanStatus.InternalError);
             throw;
         }
@@ -390,16 +372,7 @@ public class UpdateServerEntity
         }
         catch (Exception ex)
         {
-            SentrySdk.CaptureException(ex, scope =>
-            {
-                StackTrace st = new StackTrace(ex, true);
-                StackFrame frame = st.GetFrame(0);
-                int line = frame.GetFileLineNumber();
-                scope.SetExtra("Exception Line", line);
-                scope.SetExtra("Exception Message", ex.Message);
-                scope.SetExtra("Exception StackTrace", ex.StackTrace);
-
-            });
+            SentrySdk.CaptureException(ex);
         }
         TickQueue();
         CheckforCleanup();

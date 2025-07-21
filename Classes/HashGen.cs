@@ -94,27 +94,6 @@ namespace UpdateServer
             Console.WriteLine("Errors: " + errs + "\n" + "Skipped : " + skip + "\n" + "Seconds : " + timr.ElapsedMilliseconds / 1000);
         }
 
-        private static async Task<string> CalculateMD5Async(string filename)
-        {
-            try
-            {
-                using (FileStream inputStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read,
-                           bufferSize: 1048576, useAsync: true))
-                using (MD5 md5 = MD5.Create())
-                {
-                    byte[] hash =  md5.ComputeHash(inputStream);
-                    return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
-                }
-            }
-            catch (Exception ex)
-            {
-                SentrySdk.CaptureException(ex);
-                throw;
-            }
-        }
-
-
-
         private static async Task<string> GetXxHash3Async(string filename)
         {
             try

@@ -94,7 +94,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>false</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
-    <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
   </PropertyGroup>
   <PropertyGroup />
   <!-- We recommend only using these features for release builds. -->
@@ -201,6 +201,10 @@
     <Reference Include="System.Collections.Immutable, Version=9.0.0.7, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>packages\System.Collections.Immutable.9.0.7\lib\net462\System.Collections.Immutable.dll</HintPath>
     </Reference>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Configuration.ConfigurationManager, Version=9.0.0.7, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>packages\System.Configuration.ConfigurationManager.9.0.7\lib\net462\System.Configuration.ConfigurationManager.dll</HintPath>
+    </Reference>
     <Reference Include="System.Core">
       <Private>True</Private>
     </Reference>
@@ -254,6 +258,12 @@
     <Reference Include="System.Windows.Forms">
       <Private>True</Private>
     </Reference>
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq, Version=3.5.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\System.Xml.Linq.3.5.21022.801\lib\net20\System.Xml.Linq.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="WatsonTcp, Version=6.0.10.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\WatsonTcp.6.0.10\lib\net48\WatsonTcp.dll</HintPath>
     </Reference>
@@ -263,6 +273,7 @@
     <Compile Include="Classes\ConsoleWriter.cs" />
     <Compile Include="Classes\FileLogger.cs" />
     <Compile Include="Classes\OST.cs" />
+    <Compile Include="Classes\SentryConfig.cs" />
     <Compile Include="Classes\UpdateQueue.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Heart.cs" />
@@ -279,6 +290,7 @@
     </EmbeddedResource>
     <None Include="app.config" />
     <None Include="packages.config" />
+    <None Include="SentrySettings.config" />
     <None Include="UpdateServer_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>

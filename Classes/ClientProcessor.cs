@@ -3,10 +3,12 @@ using FastRsync.Delta;
 using FastRsync.Signature;
 using Sentry;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.IO.Hashing;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
@@ -138,17 +140,38 @@ namespace UpdateServer.Classes
             PrepairClient();
         }
 
-        private Task<string> CalculateMD5(string filename)
+        private static async Task<string> GetXxHash3Async(string filename)
         {
-            byte[] hash;
-            using (FileStream inputStream = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            try
             {
-                MD5 md5 = MD5.Create();
+                using (FileStream inputStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read,
+                           bufferSize: 2097152, useAsync: true))
+                {
+                    var xxHash = new XxHash128();
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(2097152);
 
-                hash = md5.ComputeHash(inputStream);
+                    try
+                    {
+                        int bytesRead;
+                        while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            xxHash.Append(buffer.AsSpan(0, bytesRead));
+                        }
+
+                        byte[] hash = xxHash.GetHashAndReset();
+                        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                }
             }
-
-            return Task.FromResult(BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant());
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
+                throw;
+            }
         }
 
         private async void CreateDeltaforClient()
@@ -290,12 +313,7 @@ namespace UpdateServer.Classes
             }
             catch (Exception ex)
             {
-                SentrySdk.CaptureException(ex, scope =>
-                {
-                    scope.SetExtra("ClientGuid", _client._guid.ToString());
-                    scope.SetExtra("Exception Message", ex.Message);
-                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
-                });
+                SentrySdk.CaptureException(ex);
                 FileLogger.LogError("Error in CreateDeltaforClient");
                 transaction.Finish(ex);
             }
@@ -409,15 +427,7 @@ namespace UpdateServer.Classes
             }
             catch (Exception ex)
             {
-                SentrySdk.CaptureException(ex, scope =>
-                {
-                    StackTrace st = new StackTrace(ex, true);
-                    StackFrame frame = st.GetFrame(0);
-                    int line = frame.GetFileLineNumber();
-                    scope.SetExtra("Exception Line", line);
-                    scope.SetExtra("Exception Message", ex.Message);
-                    scope.SetExtra("Exception StackTrace", ex.StackTrace);
-                });
+                SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
                 throw;
             }
