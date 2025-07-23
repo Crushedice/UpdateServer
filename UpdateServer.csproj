@@ -87,7 +87,7 @@
     </DefineConstants>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Optimize>false</Optimize>
-    <DebugType>portable</DebugType>
+    <DebugType>embedded</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <LangVersion>latest</LangVersion>
     <ErrorReport>send</ErrorReport>

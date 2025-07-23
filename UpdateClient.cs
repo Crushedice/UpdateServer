@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace UpdateServer
@@ -19,7 +20,7 @@ namespace UpdateServer
         public string SignatureHash;
         public Dictionary<string, string> TrimmedFileHashes = new Dictionary<string, string>();
 
-        public UpdateClient()
+        UpdateClient()
         {
 
         }
@@ -30,6 +31,8 @@ namespace UpdateServer
             ClientIP = cIP;
             ClientFolder = Folder;
             Clientdeltazip = deltazip;
+            ClearClientFolderIfNotEmpty();
+
         }
 
         public void AddMissMatchFilelist(Dictionary<string, string> nes)
@@ -63,6 +66,58 @@ namespace UpdateServer
                 }
             }
             return TrimmedFileHashes;
+        }
+
+        /// <summary>
+        /// Checks if the ClientFolder has any files and deletes them if found
+        /// </summary>
+        public void ClearClientFolderIfNotEmpty()
+        {
+            if (string.IsNullOrEmpty(ClientFolder) || !Directory.Exists(ClientFolder))
+                return;
+
+            try
+            {
+                // Get all files in the ClientFolder and subdirectories
+                string[] files = Directory.GetFiles(ClientFolder, "*", SearchOption.AllDirectories);
+                
+                if (files.Length > 0)
+                {
+                    // Delete all files
+                    foreach (string file in files)
+                    {
+                        try
+                        {
+                            File.Delete(file);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log the error but continue with other files
+                            Console.WriteLine($"Failed to delete file {file}: {ex.Message}");
+                        }
+                    }
+
+                    // Delete all subdirectories
+                    string[] directories = Directory.GetDirectories(ClientFolder, "*", SearchOption.AllDirectories);
+                    foreach (string dir in directories.OrderByDescending(d => d.Length)) // Delete deepest directories first
+                    {
+                        try
+                        {
+                            if (Directory.Exists(dir))
+                                Directory.Delete(dir, false); // Only delete if empty
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log the error but continue
+                            Console.WriteLine($"Failed to delete directory {dir}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing ClientFolder {ClientFolder}: {ex.Message}");
+            }
         }
     }
 }

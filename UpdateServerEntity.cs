@@ -586,6 +586,7 @@ public class UpdateServerEntity
             if (result != null)
             {
                 Occupants.Remove(result);
+                result.Dispose();
                 Puts("ClientDisconnect recognised . Removed.");
             }
         }
