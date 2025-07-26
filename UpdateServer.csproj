@@ -271,7 +271,6 @@
   <ItemGroup>
     <Compile Include="Classes\ClientProcessor.cs" />
     <Compile Include="Classes\ConsoleWriter.cs" />
-    <Compile Include="Classes\FileLogger.cs" />
     <Compile Include="Classes\OST.cs" />
     <Compile Include="Classes\SentryConfig.cs" />
     <Compile Include="Classes\UpdateQueue.cs" />

@@ -64,13 +64,8 @@ namespace UpdateServer.Classes
                 string zipFileName = _client.Clientdeltazip;
                 if (File.Exists(zipFileName)) File.Delete(zipFileName);
                 string clientRustFolder = _client.ClientFolder + "\\Rust\\";
-                SentrySdk.CaptureMessage("Deltazip", scope =>
-                {
-                    // Replace the problematic line with the following:
-                    UpdateServerEntity.SetExtrasFromList(scope, _client.dataToSend);
-                    scope.AddBreadcrumb(zipFileName);
-
-                });
+                SentrySdk.AddBreadcrumb("Deltazip","Info", "", _client.missmatchedFilehashes
+                );
                 int itemcount = 0;
                 try
                 {
@@ -95,7 +90,7 @@ namespace UpdateServer.Classes
                             {
                                 SentrySdk.CaptureException(ex);
                                 Console.WriteLine($"Error packing file: {ex.Message}");
-                                FileLogger.LogError($"Error packing file: {ex.Message}");
+                                
                             }
                     }
                     deltaFilesSpan.Finish();
@@ -104,7 +99,7 @@ namespace UpdateServer.Classes
                 catch (Exception e)
                 {
                     Console.WriteLine($"Error in pack zip: {e.Message}");
-                    FileLogger.LogError($"Error in pack zip: {e.Message}");
+                    
                     SentrySdk.CaptureException(e);
                 }
                 await SendZipFile(zipFileName, false, _cts.Token);
@@ -117,7 +112,7 @@ namespace UpdateServer.Classes
             }
             catch (Exception ex)
             {
-                FileLogger.LogError("Error in CreateZipFile");
+             
                 SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
                 throw;
@@ -275,7 +270,7 @@ namespace UpdateServer.Classes
                     catch (Exception e)
                     {
                         send($"Error In creating Delta for {x}");
-                        FileLogger.LogError($"Error in Create Delta: {e.Message}");
+                      
                         Console.WriteLine($"Error in Create Delta: {e.Message}");
                         SentrySdk.CaptureException(e, scope =>
                         {
@@ -334,7 +329,7 @@ namespace UpdateServer.Classes
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-                FileLogger.LogError("Error in CreateDeltaforClient");
+              
                 transaction.Finish(ex);
             }
             finally
@@ -426,7 +421,7 @@ namespace UpdateServer.Classes
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-                FileLogger.LogError("Error in CreateDeltaforClient");
+               
                 transaction.Finish(ex);
                 throw;
             }
@@ -488,7 +483,7 @@ namespace UpdateServer.Classes
             catch (Exception e)
             {
                 send($"Error In creating Delta for {filePath}");
-                FileLogger.LogError($"Error in Create Delta: {e.Message}");
+              
                 Console.WriteLine($"Error in Create Delta: {e.Message}");
                 SentrySdk.CaptureException(e);
                 return (false, null);
@@ -616,7 +611,7 @@ namespace UpdateServer.Classes
                     Directory.CreateDirectory(deltaOutputDirectory);
                 try
                 {
-                    File.Copy(deltapath, destpath);
+                    File.Copy(deltapath, destpath,true);
                     lock (_dataToSendLock)
                     {
                         _client.dataToSend.Add(destpath);
@@ -624,8 +619,11 @@ namespace UpdateServer.Classes
                 }
                 catch (Exception ex)
                 {
-                    SentrySdk.CaptureException(ex);
-                    FileLogger.LogError($"Error copying delta file: {ex.Message}");
+                    SentrySdk.CaptureException(ex, s =>
+                    {
+                        s.SetExtra(deltapath,destpath);
+                    });
+                   
                 }
 
                 copycount++;

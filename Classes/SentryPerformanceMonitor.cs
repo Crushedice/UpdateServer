@@ -184,7 +184,7 @@ namespace UpdateServer.Classes
             }
             
             SentrySdk.AddBreadcrumb($"Recorded metric: {metricName} = {value}", "performance.metric");
-            FileLogger.LogInfo($"Performance metric recorded: {metricName} = {value}");
+           
         }
 
         /// <summary>

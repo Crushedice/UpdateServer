@@ -20,6 +20,7 @@ namespace UpdateServer
             using (SentrySdk.Init(o =>
             {
                 o.Dsn = sentryConfig.Dsn;
+                
                 o.Environment = sentryConfig.Environment;
                 //o.Release = sentryConfig.Release;
                 o.Debug = sentryConfig.Debug;
@@ -29,6 +30,7 @@ namespace UpdateServer
                 o.SendDefaultPii = true;
                 o.AddDiagnosticSourceIntegration();
                 o.AttachStacktrace = true;
+                
                 o.DiagnosticLevel = sentryConfig.Debug ? SentryLevel.Debug : SentryLevel.Error;
                 o.SetBeforeSend((@event, _) =>
                 {
@@ -44,7 +46,7 @@ namespace UpdateServer
                                 @event.SetExtra($"Exception.Data.{de.Key}", de.Value);
                             }
                         }
-
+                        
                         // Exception Type, Message, StackTrace
                         @event.SetExtra("Exception Type", ex.GetType().FullName);
                         @event.SetExtra("Exception Message", ex.Message);

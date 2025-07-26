@@ -120,12 +120,12 @@ public class UpdateServerEntity
 
         if (stored)
         {
-            FileLogger.LogInfo("  Sent Stored Deltas : " + BytesToString(new FileInfo(zip).Length) + " to: " + id);
+           
             Puts("SendStoredDelta");
         }
         else
         {
-            FileLogger.LogInfo("  UpdateCreation Finished : " + BytesToString(new FileInfo(zip).Length) + " to: " + id);
+           
             Puts("Created New Update");
         }
 
