@@ -1,166 +1,190 @@
-﻿using Newtonsoft.Json;
-using Sentry;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json;
+using Sentry;
 
 namespace UpdateServer
 {
     public class Heart
     {
+        #region Delegates
         public delegate void sendmsg(string inp, string ip, bool hashes);
+        #endregion
 
+        #region Thread-Safe Locks
         private static readonly object CurUpdatersLock = new object();
         private static readonly object FileHashesLock = new object();
         private static readonly object SingleStoredDeltaLock = new object();
         private static readonly object ThreadListLock = new object();
+        #endregion
 
+        #region Static Properties and Fields
         public static Dictionary<string, string> CurUpdaters = new Dictionary<string, string>();
-
         public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
-
-        public static string Hashes = string.Empty;
-
-        //  public static Dictionary<string, string>
-        public static TextBox Inputbox;
-
-        public static RichTextBox ProgressOvLk;
-
-        public static sendmsg sendmessage;
-
         public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
-
         public static List<string> ThreadList = new List<string>();
-
-        public static ListBox UpdaterGrid;
-
-        public static Label VersionLabel;
-
+        public static string Hashes = string.Empty;
         public static string Vversion = string.Empty;
-
+        
+        // UI Components (if used)
+        public static TextBox Inputbox;
+        public static RichTextBox ProgressOvLk;
+        public static ListBox UpdaterGrid;
+        public static Label VersionLabel;
+        public static sendmsg sendmessage;
+        
+        // Internal
         private static Thread Server;
+        #endregion
 
+        #region Instance Fields
         public UpdateServerEntity _server;
+        #endregion
 
+        #region Constructor
         public Heart()
+        {
+            InitializeVersion();
+            StartServer();
+        }
+        #endregion
+
+        #region Initialization Methods
+        private void InitializeVersion()
         {
             DirectoryInfo directoryInfo = new DirectoryInfo(Directory.GetCurrentDirectory());
 
-            string v = string.Empty;
             if (File.Exists("Version.txt"))
             {
-                v = File.ReadAllText("Version.txt");
-                Vversion = v;
+                string version = File.ReadAllText("Version.txt");
+                Vversion = version;
             }
             else
             {
                 Console.WriteLine("Error - Version File Not Found!!!");
-                //return;
                 Vversion = "2318";
             }
-            
-            beat();
         }
 
-        public static void addsingledelta(string a, string b)
+        private async void StartServer()
         {
-            lock (SingleStoredDeltaLock)
-            {
-                singleStoredDelta.Add(a, b);
-            }
-        }
-
-        public static void PoolMod(string thrd, bool add)
-        {
-            lock (ThreadListLock)
-            {
-                if (add)
-                    ThreadList.Add(thrd);
-                else
-                    ThreadList.Remove(thrd);
-            }
-            ShowPoolThreads();
-        }
-
-        public static void ProcessUpdaterList(string ipPort, int indecator, string PFiles = "")
-        {
-            string Name = ipPort.Split(':')[0].Replace('.', '0');
-
-            switch (indecator)
-            {
-                //Case 1 =  Client starts updating.
-                case 1:
-                    if (!UpdaterGrid.Items.Contains(Name)) UpdaterGrid.Items.Add(Name);
-
-                    UpdaterGrid.Refresh();
-                    break;
-
-                //Case 2 = Client done updating / Client got his delta files.
-                case 2:
-                    if (UpdaterGrid.Items.Contains(Name)) UpdaterGrid.Items.Remove(Name);
-
-                    UpdaterGrid.Refresh();
-                    break;
-
-                //Case 3 = Update the UI
-                case 3:
-                    if (UpdaterGrid.Items.Contains(Name))
-                    {
-                        // UpdaterGrid[Name] = PFiles;
-                    }
-
-                    UpdaterGrid.Refresh();
-                    break;
-            }
-        }
-
-        public static void ShowPoolThreads()
-        {
-            ProgressOvLk.Clear();
-            Console.WriteLine("Threads: \n");
-
-            foreach (string x in ThreadList) Console.WriteLine(x + "\n");
-        }
-
-        private async void beat()
-        {
-            if (!File.Exists("Hashes.json"))
-            {
-                await new HashGen().Run();
-                lock (FileHashesLock)
-                {
-                    Hashes = File.ReadAllText("Hashes.json");
-                    FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
-                }
-            }
-            else
-            {
-                lock (FileHashesLock)
-                {
-                    Hashes = File.ReadAllText("Hashes.json");
-                    FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
-                }
-            }
+            await InitializeHashes();
             Console.WriteLine("Heart Started. Starting update server...");
             _server = new UpdateServerEntity();
         }
 
+        private async Task InitializeHashes()
+        {
+            if (!File.Exists("Hashes.json"))
+            {
+                await new HashGen().Run();
+                LoadHashesFromFile();
+            }
+            else
+            {
+                LoadHashesFromFile();
+            }
+        }
+
+        private void LoadHashesFromFile()
+        {
+            lock (FileHashesLock)
+            {
+                Hashes = File.ReadAllText("Hashes.json");
+                FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+            }
+        }
+        #endregion
+
+        #region Static Methods - Thread Management
+        public static void PoolMod(string thread, bool add)
+        {
+            lock (ThreadListLock)
+            {
+                if (add)
+                    ThreadList.Add(thread);
+                else
+                    ThreadList.Remove(thread);
+            }
+            ShowPoolThreads();
+        }
+
+        public static void ShowPoolThreads()
+        {
+            ProgressOvLk?.Clear();
+            Console.WriteLine("Threads: \n");
+
+            foreach (string thread in ThreadList) 
+                Console.WriteLine(thread + "\n");
+        }
+        #endregion
+
+        #region Static Methods - Delta Management
+        public static void addsingledelta(string key, string value)
+        {
+            lock (SingleStoredDeltaLock)
+            {
+                singleStoredDelta.Add(key, value);
+            }
+        }
+        #endregion
+
+        #region Static Methods - UI Management
+        public static void ProcessUpdaterList(string ipPort, int indicator, string files = "")
+        {
+            if (UpdaterGrid == null) return;
+
+            string name = ipPort.Split(':')[0].Replace('.', '0');
+
+            switch (indicator)
+            {
+                case 1: // Client starts updating
+                    if (!UpdaterGrid.Items.Contains(name)) 
+                        UpdaterGrid.Items.Add(name);
+                    UpdaterGrid.Refresh();
+                    break;
+
+                case 2: // Client done updating / Client got delta files
+                    if (UpdaterGrid.Items.Contains(name)) 
+                        UpdaterGrid.Items.Remove(name);
+                    UpdaterGrid.Refresh();
+                    break;
+
+                case 3: // Update the UI
+                    if (UpdaterGrid.Items.Contains(name))
+                    {
+                        // UpdaterGrid[name] = files;
+                    }
+                    UpdaterGrid.Refresh();
+                    break;
+            }
+        }
+        #endregion
+
+        #region Private Methods - Tree Building
         private void BuildTree(DirectoryInfo directoryInfo, TreeNodeCollection addInMe)
         {
             TreeNode curNode = addInMe.Add(directoryInfo.Name);
 
-            foreach (FileInfo file in directoryInfo.GetFiles()) curNode.Nodes.Add(file.FullName, file.Name);
+            foreach (FileInfo file in directoryInfo.GetFiles()) 
+                curNode.Nodes.Add(file.FullName, file.Name);
 
-            foreach (DirectoryInfo subdir in directoryInfo.GetDirectories()) BuildTree(subdir, curNode.Nodes);
+            foreach (DirectoryInfo subdir in directoryInfo.GetDirectories()) 
+                BuildTree(subdir, curNode.Nodes);
         }
+        #endregion
 
+        #region Nested Classes
         public class NodeSorter : IComparer
         {
-            // Compare the length of the strings, or the strings
-            // themselves, if they are the same length.
+            /// <summary>
+            /// Compare the length of the strings, or the strings themselves, if they are the same length.
+            /// </summary>
             public int Compare(object x, object y)
             {
                 TreeNode tx = x as TreeNode;
@@ -174,5 +198,6 @@ namespace UpdateServer
                 return string.Compare(tx.Text, ty.Text);
             }
         }
+        #endregion
     }
 }

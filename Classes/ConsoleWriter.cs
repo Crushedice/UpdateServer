@@ -2,33 +2,45 @@
 using System.IO;
 using System.Text;
 
-public class ConsoleWriter : TextWriter
+namespace UpdateServer.Classes
 {
-    public override Encoding Encoding => Encoding.UTF8;
-
-    public event EventHandler<ConsoleWriterEventArgs> WriteEvent;
-
-    public event EventHandler<ConsoleWriterEventArgs> WriteLineEvent;
-
-    public override void Write(string value)
+    public class ConsoleWriter : TextWriter
     {
-        if (WriteEvent != null) WriteEvent(this, new ConsoleWriterEventArgs(value));
-        base.Write(value);
+        #region Properties
+        public override Encoding Encoding => Encoding.UTF8;
+        #endregion
+
+        #region Events
+        public event EventHandler<ConsoleWriterEventArgs> WriteEvent;
+        public event EventHandler<ConsoleWriterEventArgs> WriteLineEvent;
+        #endregion
+
+        #region TextWriter Overrides
+        public override void Write(string value)
+        {
+            WriteEvent?.Invoke(this, new ConsoleWriterEventArgs(value));
+            base.Write(value);
+        }
+
+        public override void WriteLine(string value)
+        {
+            WriteLineEvent?.Invoke(this, new ConsoleWriterEventArgs(value));
+            base.WriteLine(value);
+        }
+        #endregion
     }
 
-    public override void WriteLine(string value)
+    public class ConsoleWriterEventArgs : EventArgs
     {
-        if (WriteLineEvent != null) WriteLineEvent(this, new ConsoleWriterEventArgs(value));
-        base.WriteLine(value);
-    }
-}
+        #region Properties
+        public string Value { get; private set; }
+        #endregion
 
-public class ConsoleWriterEventArgs : EventArgs
-{
-    public ConsoleWriterEventArgs(string value)
-    {
-        Value = value;
+        #region Constructor
+        public ConsoleWriterEventArgs(string value)
+        {
+            Value = value;
+        }
+        #endregion
     }
-
-    public string Value { get; private set; }
 }

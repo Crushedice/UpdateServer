@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Sentry;
-using UpdateServer.Classes;
 
 namespace UpdateServer.Classes
 {
@@ -13,12 +12,15 @@ namespace UpdateServer.Classes
     /// </summary>
     public static class SentryPerformanceMonitor
     {
+        #region Private Fields
         private static readonly ConcurrentDictionary<string, string> ActiveTransactions = 
             new ConcurrentDictionary<string, string>();
         
         private static readonly ConcurrentDictionary<string, string> ActiveSpans = 
             new ConcurrentDictionary<string, string>();
+        #endregion
 
+        #region Transaction Management
         /// <summary>
         /// Starts a new transaction for monitoring async operations
         /// </summary>
@@ -39,6 +41,24 @@ namespace UpdateServer.Classes
         }
 
         /// <summary>
+        /// Finishes a transaction with optional status and data
+        /// </summary>
+        /// <param name="transactionId">Transaction ID to finish</param>
+        /// <param name="status">Status of the transaction</param>
+        /// <param name="data">Additional data to attach</param>
+        public static void FinishTransaction(string transactionId, SpanStatus status = SpanStatus.Ok, 
+            Dictionary<string, object> data = null)
+        {
+            if (ActiveTransactions.TryRemove(transactionId, out var transactionName))
+            {
+                SentrySdk.AddBreadcrumb($"Finished transaction: {transactionName}", "performance.transaction.finish");
+                SentrySdk.CaptureMessage($"Performance transaction finished: {transactionName} - Status: {status}");
+            }
+        }
+        #endregion
+
+        #region Span Management
+        /// <summary>
         /// Starts a child span within a transaction
         /// </summary>
         /// <param name="transactionId">Parent transaction ID</param>
@@ -58,22 +78,6 @@ namespace UpdateServer.Classes
         }
 
         /// <summary>
-        /// Finishes a transaction with optional status and data
-        /// </summary>
-        /// <param name="transactionId">Transaction ID to finish</param>
-        /// <param name="status">Status of the transaction</param>
-        /// <param name="data">Additional data to attach</param>
-        public static void FinishTransaction(string transactionId, SpanStatus status = SpanStatus.Ok, 
-            Dictionary<string, object> data = null)
-        {
-            if (ActiveTransactions.TryRemove(transactionId, out var transactionName))
-            {
-                SentrySdk.AddBreadcrumb($"Finished transaction: {transactionName}", "performance.transaction.finish");
-                SentrySdk.CaptureMessage($"Performance transaction finished: {transactionName} - Status: {status}");
-            }
-        }
-
-        /// <summary>
         /// Finishes a span with optional status and data
         /// </summary>
         /// <param name="spanId">Span ID to finish</param>
@@ -88,7 +92,9 @@ namespace UpdateServer.Classes
                 SentrySdk.CaptureMessage($"Performance span finished: {spanName} - Status: {status}");
             }
         }
+        #endregion
 
+        #region Async Operation Monitoring
         /// <summary>
         /// Monitors an async operation with automatic span creation
         /// </summary>
@@ -160,7 +166,9 @@ namespace UpdateServer.Classes
                 stopwatch.Stop();
             }
         }
+        #endregion
 
+        #region Metrics and Context
         /// <summary>
         /// Records a custom performance metric
         /// </summary>
@@ -184,7 +192,6 @@ namespace UpdateServer.Classes
             }
             
             SentrySdk.AddBreadcrumb($"Recorded metric: {metricName} = {value}", "performance.metric");
-           
         }
 
         /// <summary>
@@ -213,7 +220,9 @@ namespace UpdateServer.Classes
                 }
             });
         }
+        #endregion
 
+        #region Status and Cleanup
         /// <summary>
         /// Gets the count of active transactions
         /// </summary>
@@ -241,5 +250,6 @@ namespace UpdateServer.Classes
             SentrySdk.AddBreadcrumb("Cleared all active performance monitoring", "performance.cleanup");
             SentrySdk.CaptureMessage("Performance monitoring cleared all active transactions and spans");
         }
+        #endregion
     }
 }

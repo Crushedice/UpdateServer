@@ -1,7 +1,3 @@
-using FastRsync.Core;
-using FastRsync.Delta;
-using FastRsync.Signature;
-using Sentry;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -10,33 +6,41 @@ using System.IO;
 using System.IO.Compression;
 using System.IO.Hashing;
 using System.Linq;
-using System.Reflection;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using FastRsync.Core;
+using FastRsync.Delta;
+using FastRsync.Signature;
+using Sentry;
 using UpdateServer.Classes;
 
 namespace UpdateServer.Classes
 {
     public class ClientProcessor : IDisposable
     {
+        #region Fields and Properties
         public string tcpipport;
+        public UpdateClient _client { get; }
+        
         private ClientProcessor _instanceRef;
         private bool _running;
         private int NrInQueue;
-        public UpdateClient _client { get; }
-
         private bool _disposed = false;
         private CancellationTokenSource _cts = new CancellationTokenSource();
+        #endregion
 
+        #region Thread-Safe Locks
         private static readonly object _dataToSendLock = new object();
         private static readonly object _fileToDeleteLock = new object();
+        #endregion
 
+        #region Constructor
         public ClientProcessor(UpdateClient user)
         {
             _client = user;
             tcpipport = user.ClientIP;
             _instanceRef = this;
+            
             SentrySdk.CaptureMessage("New Client Created", s =>
             {
                 s.SetExtra("ClientGuid", _client._guid.ToString());
@@ -45,85 +49,9 @@ namespace UpdateServer.Classes
                 s.SetExtra("ClientDeltaZip", _client.Clientdeltazip);
             });
         }
+        #endregion
 
-        private async Task CreateZipFile(bool additionalfiles = false)
-        {
-            // Start Sentry transaction for zip creation
-            var transaction = SentrySdk.StartTransaction(
-                "zip_creation",
-                additionalfiles ? "client.additionalfiles_zip" : "client.deltafiles_zip",
-                $"Creating zip file for client {_client._guid} (additionalfiles={additionalfiles})"
-            );
-            try
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                int retrycount = 0;
-                send("Making ZipFile");
-                int allitems;
-                lock (_dataToSendLock) { allitems = _client.dataToSend.Count(); }
-                string zipFileName = _client.Clientdeltazip;
-                if (File.Exists(zipFileName)) File.Delete(zipFileName);
-                string clientRustFolder = _client.ClientFolder + "\\Rust\\";
-                SentrySdk.AddBreadcrumb("Deltazip","Info", "", _client.missmatchedFilehashes
-                );
-                int itemcount = 0;
-                try
-                {
-                    var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
-                    using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
-                    {
-                        List<string> dataToSendCopy;
-                        lock (_dataToSendLock) { dataToSendCopy = new List<string>(_client.dataToSend); }
-                        foreach (string x in dataToSendCopy)
-                            try
-                            {
-                                _cts.Token.ThrowIfCancellationRequested();
-                                if (!File.Exists(x)) continue;
-                                string relativePath = x.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
-                                string fixedname = relativePath.Replace('\\', '/');
-                                zip.CreateEntryFromFile(x, fixedname, CompressionLevel.Optimal);
-                                itemcount++;
-
-                                send($"Packing Update: {itemcount} / {allitems}");
-                            }
-                            catch (Exception ex)
-                            {
-                                SentrySdk.CaptureException(ex);
-                                Console.WriteLine($"Error packing file: {ex.Message}");
-                                
-                            }
-                    }
-                    deltaFilesSpan.Finish();
-                    lock (_fileToDeleteLock) { _client.filetoDelete.Add(zipFileName); }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Error in pack zip: {e.Message}");
-                    
-                    SentrySdk.CaptureException(e);
-                }
-                await SendZipFile(zipFileName, false, _cts.Token);
-                transaction.Finish();
-            }
-            catch (OperationCanceledException)
-            {
-                SentrySdk.CaptureMessage("CreateZipFile cancelled");
-                transaction.Finish();
-            }
-            catch (Exception ex)
-            {
-             
-                SentrySdk.CaptureException(ex);
-                transaction.Finish(ex);
-                throw;
-            }
-            finally
-            {
-                if (!transaction.IsFinished)
-                    transaction.Finish();
-            }
-        }
-
+        #region Public Methods
         public void Notify()
         {
             send("Waiting in Queue....");
@@ -135,217 +63,85 @@ namespace UpdateServer.Classes
             _running = true;
             PrepairClient();
         }
+        #endregion
 
-        private static async Task<string> GetXxHash3Async(string filename)
+        #region Core Processing Methods
+        private void PrepairClient()
         {
-            // Start Sentry transaction for hash calculation
-            var transaction = SentrySdk.StartTransaction(
-                "xxhash3_calculation",
-                "client.xxhash3",
-                $"Calculating xxHash3 for file {filename}"
-            );
+            SentrySdk.AddBreadcrumb("PrepairClient");
+            int copycount = 0;
+            
+            foreach (var deltaItem in _client.MatchedDeltas)
+            {
+                ProcessMatchedDelta(deltaItem, ref copycount);
+            }
+            
+            LogPrepairClientCompletion(copycount);
+            
+            if (_client.MatchedDeltas.Count >= _client.missmatchedFilehashes.Count || _client.TrimmedFileHashes.Count < 1)
+            {
+                EndThisOne();
+                return;
+            }
+            
+            CreateDeltaforClient();
+        }
+
+        private void ProcessMatchedDelta(KeyValuePair<string, string> deltaItem, ref int copycount)
+        {
+            string deltapath = UpdateServerEntity.DeltaStorage + "\\" + deltaItem.Key;
+            string destpath = _client.ClientFolder + "\\Rust\\" + deltaItem.Value + ".octodelta";
+            string deltaOutputDirectory = Path.GetDirectoryName(destpath);
+            
+            if (!Directory.Exists(deltaOutputDirectory))
+                Directory.CreateDirectory(deltaOutputDirectory);
+            
             try
             {
-                using (FileStream inputStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read,
-                           bufferSize: 2097152, useAsync: true))
+                File.Copy(deltapath, destpath, true);
+                lock (_dataToSendLock)
                 {
-                    var xxHash = new XxHash128();
-                    byte[] buffer = ArrayPool<byte>.Shared.Rent(2097152);
-
-                    try
-                    {
-                        int bytesRead;
-                        var readSpan = transaction.StartChild("xxhash3.read", "Reading file for hash");
-                        while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                        {
-                            xxHash.Append(buffer.AsSpan(0, bytesRead));
-                        }
-                        readSpan.Finish();
-
-                        var hashSpan = transaction.StartChild("xxhash3.compute", "Computing hash");
-                        byte[] hash = xxHash.GetHashAndReset();
-                        hashSpan.Finish();
-
-                        transaction.Finish();
-                        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(buffer);
-                    }
+                    _client.dataToSend.Add(destpath);
                 }
             }
             catch (Exception ex)
             {
-                SentrySdk.CaptureException(ex);
-                transaction.Finish(ex);
-                throw;
+                SentrySdk.CaptureException(ex, s =>
+                {
+                    s.SetExtra(deltapath, destpath);
+                });
             }
-            finally
-            {
-                if (!transaction.IsFinished)
-                    transaction.Finish();
-            }
+
+            copycount++;
         }
 
-        // Replace the method signature and implementation for CreateDeltaforClient
+        private void LogPrepairClientCompletion(int copycount)
+        {
+            SentrySdk.CaptureMessage("PrepairClient completed", s =>
+            {
+                s.SetExtra("Copycount ", copycount);
+                s.SetExtra("MatchedDeltasCount", _client.MatchedDeltas);
+                s.SetExtra("MissmatchedFileHashesCount", _client.missmatchedFilehashes);
+                s.SetExtra("Trimmed List", _client.TrimmedFileHashes);
+            });
+        }
+
+        private void EndThisOne()
+        {
+            UpdateServerEntity.Puts("Await Done Ending thisone");
+            _ = CreateZipFile();
+        }
+        #endregion
+
+        #region Delta Creation Methods
         private async void CreateDeltaforClient()
         {
-            // Start Sentry transaction for delta creation
             var transaction = SentrySdk.StartTransaction(
                 "delta_creation",
                 "client.delta_creation",
                 $"Creating delta files for client {_client._guid}"
             );
-            SentrySdk.AddBreadcrumb("CreateDeltaFor client");
-            try
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                send("Starting Delta Creation");
-
-                string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
-                int allc = allDeltas.Count();
-                int prg = 0;
-                string _deltahash = "";
-                string deltaFilePath = "";
-
-                var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
-
-                foreach (string x in allDeltas)
-                {
-                    _cts.Token.ThrowIfCancellationRequested();
-                    if (!UpdateServerEntity.server.IsClientConnected(this._client._guid))
-                    {
-                        SentrySdk.CaptureMessage("Client Disconnected during Delta Creation", s =>
-                        {
-                            s.SetExtra("ClientGuid", _client._guid.ToString());
-                        });
-                        deltaFilesSpan.Finish();
-                        transaction.Finish();
-                        return;
-                    }
-                    int currentProgress = Interlocked.Increment(ref prg);
-                    
-                    if (x.Contains(".zip")) continue;
-                    string relativePath = x.Replace(_client.ClientFolder, string.Empty);
-                    string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
-                    string origfile = FixPath(x.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\", @"\").Replace(@"\Rust\", string.Empty);
-                    string OrigPath = origfile;
-
-                    try
-                    {
-                        if (!x.Contains(".zip"))
-                        {
-                            _client.filetoDelete.Add(x);
-                            string filename = Path.GetFileName(x);
-
-                            if (!File.Exists(newFilePath)) continue;
-                            var inf = new FileInfo(x);
-                            var size = GetBytesReadable(inf.Length);
-                            send($"Delta Progress: {currentProgress} / {allc} --- {size}");
-                            deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
-                            string deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
-                            if (!Directory.Exists(deltaOutputDirectory))
-                                Directory.CreateDirectory(deltaOutputDirectory);
-
-                            var fileDeltaSpan = transaction.StartChild("delta.file", $"Delta for {filename}");
-                            DeltaBuilder deltaBuilder = new DeltaBuilder();
-                            using (FileStream newFileStream =
-                                   new FileStream(newFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            using (FileStream signatureStream =
-                                   new FileStream(x, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            using (FileStream deltaStream = new FileStream(deltaFilePath, FileMode.Create, FileAccess.Write,
-                                       FileShare.ReadWrite))
-                            {
-                                await deltaBuilder.BuildDeltaAsync(newFileStream,
-                                        new SignatureReader(signatureStream, null),
-                                        new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)))
-                                    .ConfigureAwait(false);
-                            }
-                            fileDeltaSpan.Finish();
-
-                            lock (_dataToSendLock) { _client.dataToSend.Add(deltaFilePath); }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        send($"Error In creating Delta for {x}");
-                      
-                        Console.WriteLine($"Error in Create Delta: {e.Message}");
-                        SentrySdk.CaptureException(e, scope =>
-                        {
-                            scope.SetExtra("File", x);
-                            scope.SetExtra("ClientGuid", _client._guid.ToString());
-                        });
-                    }
-                    try
-                    {
-                        var hashSpan = transaction.StartChild("delta.hash", $"Hash for {deltaFilePath}");
-                        _deltahash = await GetXxHash3Async(deltaFilePath);
-                        var _sighash = _client.missmatchedFilehashes.FirstOrDefault(f => f.Key == origfile).Value;
-                        if (!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + _deltahash))
-                            File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + _deltahash);
-
-                        var nee = new Dictionary<string, string>();
-                        nee.Add(_deltahash, OrigPath);
-                        if (_sighash != null) ;
-                        if (!UpdateServerEntity.DeltaFileStorage.ContainsKey(_sighash))
-                            UpdateServerEntity.DeltaFileStorage.Add(_sighash, nee);
-                        hashSpan.Finish();
-                    }
-                    catch (Exception d)
-                    {
-                        SentrySdk.CaptureException(d, scope =>
-                        {
-                            scope.SetExtra("DeltaFilePath", deltaFilePath);
-                            scope.SetExtra("ClientGuid", _client._guid.ToString());
-                        });
-                        Console.WriteLine(d.InnerException);
-                    }
-
-                    // prg++;
-                    
-                    UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
-                }
-
-                deltaFilesSpan.Finish();
-
-                SentrySdk.CaptureMessage("DeltaFinished", s =>
-                {
-                    s.SetTag("ClientGuid", _client._guid.ToString());
-                    s.SetExtra("DeltaFilesCount", allc);
-                    s.SetExtra("DeltaFilePath", deltaFilePath);
-                });
-
-                EndThisOne();
-                transaction.Finish();
-
-            }
-            catch (OperationCanceledException)
-            {
-                SentrySdk.CaptureMessage("CreateDeltaforClient cancelled");
-                transaction.Finish();
-            }
-            catch (Exception ex)
-            {
-                SentrySdk.CaptureException(ex);
-              
-                transaction.Finish(ex);
-            }
-            finally
-            {
-                if (!transaction.IsFinished)
-                    transaction.Finish();
-            }
-        }
-        private async Task CreateDeltaforClientPar()
-        {
-            // Start Sentry transaction for delta creation
-            var transaction = SentrySdk.StartTransaction(
-                "delta_creation",
-                "client.delta_creation",
-                $"Creating delta files for client {_client._guid}"
-            );
+            
             SentrySdk.AddBreadcrumb("CreateDeltaFor client");
             
             try
@@ -354,60 +150,12 @@ namespace UpdateServer.Classes
                 send("Starting Delta Creation");
 
                 string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
-                if (allDeltas.Length != _client.TrimmedFileHashes.Count)
-                {
-                    SentrySdk.CaptureMessage(
-                        $"allDelta processor is not same as Pre defined list--{allDeltas.Length} / {_client.TrimmedFileHashes.Count}");
-                }
-
-                int allc = allDeltas.Length;
-                int prg = 0;
-                string deltaFilePath = "";
+                await ProcessDeltaFiles(allDeltas, transaction);
                 
-                var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
-
-                // Use SemaphoreSlim to control degree of parallelism
-                int maxDegree = Math.Max(Environment.ProcessorCount / 2, 2);
-                using (var semaphore = new SemaphoreSlim(maxDegree))
-                {
-                    var tasks = allDeltas.Select(async x =>
-                    {
-                        await semaphore.WaitAsync(_cts.Token);
-                        try
-                        {
-                            int currentProgress = Interlocked.Increment(ref prg);
-                            var inf = new FileInfo(x);
-                            double fileSizeMB = inf.Length / (1024.0 * 1024.0);
-                            send($"Delta Progress: {currentProgress} / {allc} | {fileSizeMB}MB");
-                            var result = await ProcessDeltaFileAsync(x, transaction, allc);
-                            if (!string.IsNullOrEmpty(result.deltaFilePath))
-                            {
-                                deltaFilePath = result.deltaFilePath;
-                            }
-                            if (result.success)
-                            {
-                                
-                                
-                                UpdateServerEntity.Puts($"Waiting for {currentProgress} / {allc}");
-                            }
-                            return result;
-                        }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    });
-
-                    await Task.WhenAll(tasks);
-                }
-
-                deltaFilesSpan.Finish();
-
                 SentrySdk.CaptureMessage("DeltaFinished", s =>
                 {
                     s.SetTag("ClientGuid", _client._guid.ToString());
-                    s.SetExtra("DeltaFilesCount", allc);
-                    s.SetExtra("DeltaFilePath", deltaFilePath);
+                    s.SetExtra("DeltaFilesCount", allDeltas.Length);
                 });
 
                 EndThisOne();
@@ -421,7 +169,191 @@ namespace UpdateServer.Classes
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-               
+                transaction.Finish(ex);
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
+        }
+
+        private async Task ProcessDeltaFiles(string[] allDeltas, ITransactionTracer transaction)
+        {
+            int allc = allDeltas.Length;
+            int prg = 0;
+            string deltaFilePath = "";
+
+            var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
+
+            foreach (string filePath in allDeltas)
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                
+                if (!UpdateServerEntity.server.IsClientConnected(_client._guid))
+                {
+                    SentrySdk.CaptureMessage("Client Disconnected during Delta Creation", s =>
+                    {
+                        s.SetExtra("ClientGuid", _client._guid.ToString());
+                    });
+                    deltaFilesSpan.Finish();
+                    return;
+                }
+
+                int currentProgress = Interlocked.Increment(ref prg);
+                
+                if (filePath.Contains(".zip")) continue;
+                
+                try
+                {
+                    deltaFilePath = await ProcessSingleDeltaFile(filePath, currentProgress, allc, transaction);
+                }
+                catch (Exception e)
+                {
+                    HandleDeltaCreationError(e, filePath);
+                }
+                
+                UpdateServerEntity.Puts($"Waiting for {prg} / {allc}");
+            }
+
+            deltaFilesSpan.Finish();
+        }
+
+        private async Task<string> ProcessSingleDeltaFile(string filePath, int currentProgress, int totalCount, ITransactionTracer transaction)
+        {
+            string relativePath = filePath.Replace(_client.ClientFolder, string.Empty);
+            string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
+            string origfile = FixPath(filePath.Replace(_client.ClientFolder, string.Empty).Replace(".octodelta", string.Empty).Replace(".octosig", string.Empty)).Replace(@"\\", @"\").Replace(@"\Rust\", string.Empty);
+            string OrigPath = origfile;
+
+            if (!File.Exists(newFilePath)) return null;
+
+            _client.filetoDelete.Add(filePath);
+            string filename = Path.GetFileName(filePath);
+
+            var inf = new FileInfo(filePath);
+            var size = GetBytesReadable(inf.Length);
+            send($"Delta Progress: {currentProgress} / {totalCount} --- {size}");
+            
+            string deltaFilePath = _client.ClientFolder + relativePath.Replace(".octosig", ".octodelta");
+            string deltaOutputDirectory = Path.GetDirectoryName(deltaFilePath);
+            
+            if (!Directory.Exists(deltaOutputDirectory))
+                Directory.CreateDirectory(deltaOutputDirectory);
+
+            await CreateDeltaFile(filePath, newFilePath, deltaFilePath, filename, transaction);
+            await ProcessDeltaHash(deltaFilePath, origfile, OrigPath, transaction);
+
+            lock (_dataToSendLock) 
+            { 
+                _client.dataToSend.Add(deltaFilePath); 
+            }
+
+            return deltaFilePath;
+        }
+
+        private async Task CreateDeltaFile(string signatureFile, string newFile, string deltaFile, string filename, ITransactionTracer transaction)
+        {
+            var fileDeltaSpan = transaction.StartChild("delta.file", $"Delta for {filename}");
+            
+            try
+            {
+                DeltaBuilder deltaBuilder = new DeltaBuilder();
+                using (FileStream newFileStream = new FileStream(newFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (FileStream signatureStream = new FileStream(signatureFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (FileStream deltaStream = new FileStream(deltaFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                {
+                    await deltaBuilder.BuildDeltaAsync(newFileStream,
+                            new SignatureReader(signatureStream, null),
+                            new AggregateCopyOperationsDecorator(new BinaryDeltaWriter(deltaStream)))
+                        .ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                fileDeltaSpan.Finish();
+            }
+        }
+
+        private async Task ProcessDeltaHash(string deltaFilePath, string origfile, string origPath, ITransactionTracer transaction)
+        {
+            var hashSpan = transaction.StartChild("delta.hash", $"Hash for {deltaFilePath}");
+            
+            try
+            {
+                string deltahash = await GetXxHash3Async(deltaFilePath);
+                var sighash = _client.missmatchedFilehashes.FirstOrDefault(f => f.Key == origfile).Value;
+                
+                if (!File.Exists(UpdateServerEntity.DeltaStorage + "\\" + deltahash))
+                    File.Copy(deltaFilePath, UpdateServerEntity.DeltaStorage + "\\" + deltahash);
+
+                var deltaInfo = new Dictionary<string, string>();
+                deltaInfo.Add(deltahash, origPath);
+                
+                if (sighash != null && !UpdateServerEntity.DeltaFileStorage.ContainsKey(sighash))
+                    UpdateServerEntity.DeltaFileStorage.Add(sighash, deltaInfo);
+            }
+            finally
+            {
+                hashSpan.Finish();
+            }
+        }
+
+        private void HandleDeltaCreationError(Exception e, string filePath)
+        {
+            send($"Error In creating Delta for {filePath}");
+            Console.WriteLine($"Error in Create Delta: {e.Message}");
+            SentrySdk.CaptureException(e, scope =>
+            {
+                scope.SetExtra("File", filePath);
+                scope.SetExtra("ClientGuid", _client._guid.ToString());
+            });
+        }
+        #endregion
+
+        #region Parallel Delta Creation Methods
+        private async Task CreateDeltaforClientPar()
+        {
+            var transaction = SentrySdk.StartTransaction(
+                "delta_creation",
+                "client.delta_creation",
+                $"Creating delta files for client {_client._guid}"
+            );
+            
+            SentrySdk.AddBreadcrumb("CreateDeltaFor client");
+            
+            try
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                send("Starting Delta Creation");
+
+                string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
+                
+                if (allDeltas.Length != _client.TrimmedFileHashes.Count)
+                {
+                    SentrySdk.CaptureMessage(
+                        $"allDelta processor is not same as Pre defined list--{allDeltas.Length} / {_client.TrimmedFileHashes.Count}");
+                }
+
+                await ProcessDeltaFilesParallel(allDeltas, transaction);
+                
+                SentrySdk.CaptureMessage("DeltaFinished", s =>
+                {
+                    s.SetTag("ClientGuid", _client._guid.ToString());
+                    s.SetExtra("DeltaFilesCount", allDeltas.Length);
+                });
+
+                EndThisOne();
+                transaction.Finish();
+            }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("CreateDeltaforClient cancelled");
+                transaction.Finish();
+            }
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
                 throw;
             }
@@ -430,6 +362,48 @@ namespace UpdateServer.Classes
                 if (!transaction.IsFinished)
                     transaction.Finish();
             }
+        }
+
+        private async Task ProcessDeltaFilesParallel(string[] allDeltas, ITransactionTracer transaction)
+        {
+            int allc = allDeltas.Length;
+            int prg = 0;
+            
+            var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
+
+            // Use SemaphoreSlim to control degree of parallelism
+            int maxDegree = Math.Max(Environment.ProcessorCount / 2, 2);
+            using (var semaphore = new SemaphoreSlim(maxDegree))
+            {
+                var tasks = allDeltas.Select(async x =>
+                {
+                    await semaphore.WaitAsync(_cts.Token);
+                    try
+                    {
+                        int currentProgress = Interlocked.Increment(ref prg);
+                        var inf = new FileInfo(x);
+                        double fileSizeMB = inf.Length / (1024.0 * 1024.0);
+                        send($"Delta Progress: {currentProgress} / {allc} | {fileSizeMB}MB");
+                        
+                        var result = await ProcessDeltaFileAsync(x, transaction, allc);
+                        
+                        if (result.success)
+                        {
+                            UpdateServerEntity.Puts($"Waiting for {currentProgress} / {allc}");
+                        }
+                        
+                        return result;
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                await Task.WhenAll(tasks);
+            }
+
+            deltaFilesSpan.Finish();
         }
 
         private async Task<(bool success, string deltaFilePath)> ProcessDeltaFileAsync(string filePath, ITransactionTracer transaction, int totalCount)
@@ -464,10 +438,11 @@ namespace UpdateServer.Classes
                 // Create delta file
                 SentrySdk.CaptureMessage($"Creating delta for {filePath}", s =>
                 {
-                    s.SetExtra("RelativePath",relativePath);
+                    s.SetExtra("RelativePath", relativePath);
                     s.SetExtra("NewFilePath", newFilePath);
                     s.SetExtra("OriginalFile", origfile);
                 });
+                
                 string localDeltaFilePath = await CreateDeltaFileAsync(filePath, newFilePath, relativePath, transaction);
                 if (string.IsNullOrEmpty(localDeltaFilePath)) return (true, null);
 
@@ -483,7 +458,6 @@ namespace UpdateServer.Classes
             catch (Exception e)
             {
                 send($"Error In creating Delta for {filePath}");
-              
                 Console.WriteLine($"Error in Create Delta: {e.Message}");
                 SentrySdk.CaptureException(e);
                 return (false, null);
@@ -572,11 +546,226 @@ namespace UpdateServer.Classes
                 Console.WriteLine(d.InnerException?.Message ?? d.Message);
             }
         }
+        #endregion
 
-        private void EndThisOne()
+        #region Zip File Operations
+        private async Task CreateZipFile(bool additionalfiles = false)
         {
-            UpdateServerEntity.Puts("Await Done Ending thisone");
-            _ = CreateZipFile();
+            var transaction = SentrySdk.StartTransaction(
+                "zip_creation",
+                additionalfiles ? "client.additionalfiles_zip" : "client.deltafiles_zip",
+                $"Creating zip file for client {_client._guid} (additionalfiles={additionalfiles})"
+            );
+            
+            try
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                send("Making ZipFile");
+                
+                int allitems;
+                lock (_dataToSendLock) { allitems = _client.dataToSend.Count(); }
+                
+                string zipFileName = _client.Clientdeltazip;
+                if (File.Exists(zipFileName)) File.Delete(zipFileName);
+                
+                SentrySdk.AddBreadcrumb("Deltazip", "Info", "", _client.missmatchedFilehashes);
+                
+                await CreateZipFileContent(zipFileName, allitems, transaction);
+                
+                lock (_fileToDeleteLock) { _client.filetoDelete.Add(zipFileName); }
+                await SendZipFile(zipFileName, false, _cts.Token);
+                
+                transaction.Finish();
+            }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("CreateZipFile cancelled");
+                transaction.Finish();
+            }
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
+                throw;
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
+        }
+
+        private async Task CreateZipFileContent(string zipFileName, int allitems, ITransactionTracer transaction)
+        {
+            int itemcount = 0;
+            
+            try
+            {
+                var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
+                
+                using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
+                {
+                    List<string> dataToSendCopy;
+                    lock (_dataToSendLock) { dataToSendCopy = new List<string>(_client.dataToSend); }
+                    
+                    foreach (string filePath in dataToSendCopy)
+                    {
+                        try
+                        {
+                            _cts.Token.ThrowIfCancellationRequested();
+                            if (!File.Exists(filePath)) continue;
+                            
+                            string relativePath = filePath.Replace(_client.ClientFolder + "\\Rust\\", string.Empty);
+                            string fixedname = relativePath.Replace('\\', '/');
+                            zip.CreateEntryFromFile(filePath, fixedname, CompressionLevel.Optimal);
+                            itemcount++;
+
+                            send($"Packing Update: {itemcount} / {allitems}");
+                        }
+                        catch (Exception ex)
+                        {
+                            SentrySdk.CaptureException(ex);
+                            Console.WriteLine($"Error packing file: {ex.Message}");
+                        }
+                    }
+                }
+                
+                deltaFilesSpan.Finish();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error in pack zip: {e.Message}");
+                SentrySdk.CaptureException(e);
+            }
+        }
+
+        private async Task SendZipFile(string zip, bool stored = false, CancellationToken cancellationToken = default)
+        {
+            var transaction = SentrySdk.StartTransaction(
+                "send_zip_file",
+                stored ? "client.send_stored_zip" : "client.send_delta_zip",
+                $"Sending zip file for client {_client._guid} (stored={stored})"
+            );
+            
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                if (stored)
+                {
+                    await SendStoredZipFile(zip, transaction, cancellationToken);
+                }
+                else
+                {
+                    await SendDeltaZipFile(zip, transaction, cancellationToken);
+                    UpdateServerEntity.EndCall(_client, this, zip);
+                }
+                
+                transaction.Finish();
+            }
+            catch (OperationCanceledException)
+            {
+                SentrySdk.CaptureMessage("SendZipFile cancelled");
+                transaction.Finish();
+            }
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
+                throw;
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
+        }
+
+        private async Task SendStoredZipFile(string zip, ITransactionTracer transaction, CancellationToken cancellationToken)
+        {
+            var storedSpan = transaction.StartChild("send.stored_zip", "Sending stored zip file");
+            try
+            {
+                using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.Asynchronous))
+                {
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, token: cancellationToken);
+                }
+            }
+            finally
+            {
+                storedSpan.Finish();
+            }
+        }
+
+        private async Task SendDeltaZipFile(string zip, ITransactionTracer transaction, CancellationToken cancellationToken)
+        {
+            var deltaSpan = transaction.StartChild("send.delta_zip", "Sending delta zip file");
+            try
+            {
+                var metadata = new Dictionary<string, object> { { "1", "2" } };
+                using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.Asynchronous))
+                {
+                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata, cancellationToken);
+                }
+            }
+            finally
+            {
+                deltaSpan.Finish();
+            }
+        }
+        #endregion
+
+        #region Utility Methods
+        private static async Task<string> GetXxHash3Async(string filename)
+        {
+            var transaction = SentrySdk.StartTransaction(
+                "xxhash3_calculation",
+                "client.xxhash3",
+                $"Calculating xxHash3 for file {filename}"
+            );
+            
+            try
+            {
+                using (FileStream inputStream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read,
+                           bufferSize: 2097152, useAsync: true))
+                {
+                    var xxHash = new XxHash128();
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(2097152);
+
+                    try
+                    {
+                        int bytesRead;
+                        var readSpan = transaction.StartChild("xxhash3.read", "Reading file for hash");
+                        while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            xxHash.Append(buffer.AsSpan(0, bytesRead));
+                        }
+                        readSpan.Finish();
+
+                        var hashSpan = transaction.StartChild("xxhash3.compute", "Computing hash");
+                        byte[] hash = xxHash.GetHashAndReset();
+                        hashSpan.Finish();
+
+                        transaction.Finish();
+                        return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SentrySdk.CaptureException(ex);
+                transaction.Finish(ex);
+                throw;
+            }
+            finally
+            {
+                if (!transaction.IsFinished)
+                    transaction.Finish();
+            }
         }
 
         private string FixPath(string path)
@@ -598,140 +787,16 @@ namespace UpdateServer.Classes
                 folderUri.MakeRelativeUri(pathUri).ToString().Replace('/', Path.DirectorySeparatorChar));
         }
 
-        private void PrepairClient()
-        {
-            SentrySdk.AddBreadcrumb("PrepairClient");
-            int copycount= 0;
-            foreach (var t in _client.MatchedDeltas)
-            {
-                string deltapath = UpdateServerEntity.DeltaStorage + "\\" + t.Key;
-                string destpath = _client.ClientFolder + "\\Rust\\" + t.Value + ".octodelta";
-                string deltaOutputDirectory = Path.GetDirectoryName(destpath);
-                if (!Directory.Exists(deltaOutputDirectory))
-                    Directory.CreateDirectory(deltaOutputDirectory);
-                try
-                {
-                    File.Copy(deltapath, destpath,true);
-                    lock (_dataToSendLock)
-                    {
-                        _client.dataToSend.Add(destpath);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    SentrySdk.CaptureException(ex, s =>
-                    {
-                        s.SetExtra(deltapath,destpath);
-                    });
-                   
-                }
-
-                copycount++;
-            }
-            SentrySdk.CaptureMessage("PrepairClient completed", s =>
-            {
-                s.SetExtra("Copycount ", copycount);
-                s.SetExtra("MatchedDeltasCount", _client.MatchedDeltas);
-                s.SetExtra("MissmatchedFileHashesCount", _client.missmatchedFilehashes);
-                s.SetExtra("Trimmed List",_client.TrimmedFileHashes);
-            });
-            if (_client.MatchedDeltas.Count >= _client.missmatchedFilehashes.Count||_client.TrimmedFileHashes.Count<1)
-            {
-                EndThisOne();
-                return;
-            }
-            CreateDeltaforClient();
-        }
-
         private void send(string msg)
         {
             Task.Run(() => UpdateServerEntity.SendProgress(_client._guid, msg), _cts.Token);
             SentrySdk.AddBreadcrumb(msg, "ServerToClient", _client._guid.ToString(), null, BreadcrumbLevel.Info);
         }
 
-        private async Task SendZipFile(string zip, bool stored = false, CancellationToken cancellationToken = default)
-        {
-            // Start Sentry transaction for sending zip file
-            var transaction = SentrySdk.StartTransaction(
-                "send_zip_file",
-                stored ? "client.send_stored_zip" : "client.send_delta_zip",
-                $"Sending zip file for client {_client._guid} (stored={stored})"
-            );
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var fileInfo = new FileInfo(zip);
-                if (stored)
-                {
-                    var storedSpan = transaction.StartChild("send.stored_zip", "Sending stored zip file");
-                    using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                               FileOptions.Asynchronous))
-                    {
-                        await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, token: cancellationToken);
-                    }
-                    storedSpan.Finish();
-                    transaction.Finish();
-                    return;
-                }
-                var metadata = new Dictionary<string, object>();
-                metadata.Add("1", "2");
-                var deltaSpan = transaction.StartChild("send.delta_zip", "Sending delta zip file");
-                using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
-                           FileOptions.Asynchronous))
-                {
-                    await UpdateServerEntity.server.SendAsync(_client._guid, source.Length, source, metadata, cancellationToken);
-                }
-                deltaSpan.Finish();
-                UpdateServerEntity.EndCall(_client, this, zip);
-                transaction.Finish();
-            }
-            catch (OperationCanceledException)
-            {
-                SentrySdk.CaptureMessage("SendZipFile cancelled");
-                transaction.Finish();
-            }
-            catch (Exception ex)
-            {
-                SentrySdk.CaptureException(ex);
-                transaction.Finish(ex);
-                throw;
-            }
-            finally
-            {
-                if (!transaction.IsFinished)
-                    transaction.Finish();
-            }
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (_disposed)
-                return;
-            if (disposing)
-            {
-                if (_cts != null)
-                {
-                    _cts.Cancel();
-                    _cts.Dispose();
-                }
-            }
-            // Dispose unmanaged resources here if any
-            SentrySdk.CaptureMessage("ClientProcessor Disposed via Dispose()");
-            _disposed = true;
-        }
-
-        ~ClientProcessor()
-        {
-            Dispose(false);
-        }
-        // Returns the human-readable file size for an arbitrary, 64-bit file size 
-        // The default format is "0.### XB", e.g. "4.2 KB" or "1.434 GB"
+        /// <summary>
+        /// Returns the human-readable file size for an arbitrary, 64-bit file size.
+        /// The default format is "0.### XB", e.g. "4.2 KB" or "1.434 GB"
+        /// </summary>
         public string GetBytesReadable(long i)
         {
             // Get absolute value
@@ -739,6 +804,7 @@ namespace UpdateServer.Classes
             // Determine the suffix and readable value
             string suffix;
             double readable;
+            
             if (absolute_i >= 0x1000000000000000) // Exabyte
             {
                 suffix = "EB";
@@ -773,10 +839,43 @@ namespace UpdateServer.Classes
             {
                 return i.ToString("0 B"); // Byte
             }
+            
             // Divide by 1024 to get fractional value
             readable = (readable / 1024);
             // Return formatted number with suffix
             return readable.ToString("0.### ") + suffix;
         }
+        #endregion
+
+        #region Dispose Pattern
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+                
+            if (disposing)
+            {
+                if (_cts != null)
+                {
+                    _cts.Cancel();
+                    _cts.Dispose();
+                }
+            }
+            
+            SentrySdk.CaptureMessage("ClientProcessor Disposed via Dispose()");
+            _disposed = true;
+        }
+
+        ~ClientProcessor()
+        {
+            Dispose(false);
+        }
+        #endregion
     }
 }
