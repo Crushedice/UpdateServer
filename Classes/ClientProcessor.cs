@@ -110,6 +110,9 @@ namespace UpdateServer.Classes
                 {
                     s.SetExtra(deltapath, destpath);
                 });
+#if DEBUG
+                throw;
+#endif
             }
 
             copycount++;
@@ -170,6 +173,9 @@ namespace UpdateServer.Classes
             {
                 SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
+#if DEBUG
+                throw;
+#endif
             }
             finally
             {
@@ -308,6 +314,7 @@ namespace UpdateServer.Classes
                 scope.SetExtra("File", filePath);
                 scope.SetExtra("ClientGuid", _client._guid.ToString());
             });
+
         }
         #endregion
 
@@ -355,7 +362,9 @@ namespace UpdateServer.Classes
             {
                 SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
+#if DEBUG
                 throw;
+#endif
             }
             finally
             {
@@ -428,8 +437,8 @@ namespace UpdateServer.Classes
                     Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\.."),
                     relativePath.Replace(".octosig", string.Empty).TrimStart('\\', '/'));
                 
-                string origfile = FixPath(relativePath.Replace(".octodelta", string.Empty)
-                    .Replace(".octosig", string.Empty))
+                string origfile = FixPath(relativePath.Replace(".octosig", string.Empty)
+                    .Replace(".octodelta", string.Empty))
                     .Replace(@"\\", @"\")
                     .Replace(@"\Rust\", string.Empty);
 
@@ -460,6 +469,9 @@ namespace UpdateServer.Classes
                 send($"Error In creating Delta for {filePath}");
                 Console.WriteLine($"Error in Create Delta: {e.Message}");
                 SentrySdk.CaptureException(e);
+#if DEBUG
+                throw;
+#endif
                 return (false, null);
             }
         }
@@ -502,6 +514,9 @@ namespace UpdateServer.Classes
             catch (Exception e)
             {
                 SentrySdk.CaptureException(e);
+#if DEBUG
+                throw;
+#endif
                 return null;
             }
         }
@@ -544,6 +559,9 @@ namespace UpdateServer.Classes
                     scope.SetExtra("ClientGuid", _client._guid.ToString());
                 });
                 Console.WriteLine(d.InnerException?.Message ?? d.Message);
+#if DEBUG
+                throw;
+#endif
             }
         }
         #endregion
@@ -586,7 +604,9 @@ namespace UpdateServer.Classes
             {
                 SentrySdk.CaptureException(ex);
                 transaction.Finish(ex);
+#if DEBUG
                 throw;
+#endif
             }
             finally
             {
@@ -626,6 +646,9 @@ namespace UpdateServer.Classes
                         {
                             SentrySdk.CaptureException(ex);
                             Console.WriteLine($"Error packing file: {ex.Message}");
+#if DEBUG
+                            throw;
+#endif
                         }
                     }
                 }
@@ -636,6 +659,9 @@ namespace UpdateServer.Classes
             {
                 Console.WriteLine($"Error in pack zip: {e.Message}");
                 SentrySdk.CaptureException(e);
+#if DEBUG
+                throw;
+#endif
             }
         }
 

@@ -347,8 +347,6 @@
     <Compile Include="Classes\OST.cs" />
     <Compile Include="Classes\SentryConfig.cs" />
     <Compile Include="Classes\UpdateQueue.cs" />
-    <Compile Include="FeedbackApi\FeedbackController.cs" />
-    <Compile Include="FeedbackApi\FeedbackReply.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Heart.cs" />
     <Compile Include="Classes\HashGen.cs" />

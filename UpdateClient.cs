@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace UpdateServer
 {
@@ -29,6 +30,7 @@ namespace UpdateServer
         private UpdateClient()
         {
             // Private constructor to prevent parameterless instantiation
+            
         }
 
         public UpdateClient(Guid guid, string clientIP, string folder, string deltazip)
@@ -38,6 +40,7 @@ namespace UpdateServer
             ClientFolder = folder;
             Clientdeltazip = deltazip;
             ClearClientFolderIfNotEmpty();
+            Thread.CurrentThread.Name = _guid.ToString();
         }
         #endregion
 
@@ -91,6 +94,9 @@ namespace UpdateServer
             catch (Exception ex)
             {
                 Console.WriteLine($"Error clearing ClientFolder {ClientFolder}: {ex.Message}");
+#if DEBUG
+                throw;
+#endif
             }
         }
         #endregion
@@ -114,6 +120,9 @@ namespace UpdateServer
                     {
                         // Log the error but continue with other files
                         Console.WriteLine($"Failed to delete file {file}: {ex.Message}");
+#if DEBUG
+                        throw;
+#endif
                     }
                 }
             }
@@ -136,6 +145,9 @@ namespace UpdateServer
                 {
                     // Log the error but continue
                     Console.WriteLine($"Failed to delete directory {dir}: {ex.Message}");
+#if DEBUG
+                    throw;
+#endif
                 }
             }
         }

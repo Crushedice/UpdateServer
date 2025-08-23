@@ -11,7 +11,6 @@ using System.Collections.Generic;
 using Sentry;
 using Sentry.Extensibility;
 using UpdateServer.Classes;
-using UpdateServer.FeedbackApi;
 using UpdateServer;
 
 // --- Begin Sentry Feedback Link Model ---
@@ -187,6 +186,7 @@ namespace UpdateServer
         #region HTTP Server
         private static void StartHttpServer()
         {
+            return;
             try
             {
                 httpListener = new HttpListener();
@@ -203,6 +203,9 @@ namespace UpdateServer
             {
                 SentrySdk.CaptureException(ex);
                 Console.WriteLine($"Failed to start HTTP server: {ex.Message}");
+#if DEBUG
+                throw;
+#endif
             }
         }
 
@@ -217,6 +220,9 @@ namespace UpdateServer
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
+#if DEBUG
+                throw;
+#endif
             }
         }
 
@@ -237,6 +243,9 @@ namespace UpdateServer
                 catch (Exception ex)
                 {
                     SentrySdk.CaptureException(ex);
+#if DEBUG
+                    throw;
+#endif
                 }
             }
         }
@@ -300,6 +309,9 @@ namespace UpdateServer
                 SentrySdk.CaptureException(ex);
                 context.Response.StatusCode = 500;
                 WriteResponse(context.Response, "Internal Server Error");
+#if DEBUG
+                throw;
+#endif
             }
         }
 
@@ -326,6 +338,9 @@ namespace UpdateServer
                     Console.WriteLine($"JSON error in feedback link: {ex.Message}");
                     context.Response.StatusCode = 400;
                     WriteResponse(context.Response, "Invalid JSON");
+#if DEBUG
+                    throw;
+#endif
                     return;
                 }
                 if (welcome?.Fields == null || welcome.Fields.UserId == Guid.Empty || string.IsNullOrWhiteSpace(welcome.Fields.Reply))
@@ -345,6 +360,9 @@ namespace UpdateServer
                 Console.WriteLine($"Error processing feedback link: {ex.Message}");
                 context.Response.StatusCode = 500;
                 WriteResponse(context.Response, "Internal Server Error");
+#if DEBUG
+                throw;
+#endif
             }
         }
 
@@ -362,6 +380,11 @@ namespace UpdateServer
             {
                 reply.Delivered = true;
                 SaveReplies(replies);
+            }
+            else
+            {
+                WriteResponse(context.Response, "Not Found");
+                return;
             }
             WriteJsonResponse(context.Response, reply);
         }
