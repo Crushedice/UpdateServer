@@ -40,9 +40,6 @@ S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.pdb
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.csproj.CoreCompileInputs.cache
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.GeneratedMSBuildEditorConfig.editorconfig
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\Sentry.Attributes.cs
-S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\x86\KernelTraceControl.dll
-S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\x86\KernelTraceControl.Win61.dll
-S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\x86\msdia140.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\TraceReloggerLib.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\Dia2Lib.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\UpdateServer.exe.config
@@ -105,6 +102,8 @@ S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\WatsonTcp.xml
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.exe.manifest
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateServer.application
 S:\RUSTICALANDPROJECTS\UpdateServer\obj\Debug\UpdateSe.8C1CDA07.Up2Date
+S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\amd64\KernelTraceControl.dll
+S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\amd64\msdia140.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\Costura.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\FastHashes.dll
 S:\RUSTICALANDPROJECTS\UpdateServer\bin\Debug\FastRsync.dll

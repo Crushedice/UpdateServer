@@ -186,7 +186,7 @@ namespace UpdateServer
         #region HTTP Server
         private static void StartHttpServer()
         {
-            return;
+           
             try
             {
                 httpListener = new HttpListener();
