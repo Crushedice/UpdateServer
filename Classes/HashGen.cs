@@ -121,6 +121,9 @@ namespace UpdateServer
                 concurrentErrs.TryAdd(file, ex.Message);
                 SentrySdk.CaptureException(ex);
                 skipped = 1;
+#if DEBUG
+                throw;
+#endif
             }
             
             return skipped;
@@ -172,6 +175,9 @@ namespace UpdateServer
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
+#if DEBUG
+                throw;
+#endif
                 throw;
             }
         }

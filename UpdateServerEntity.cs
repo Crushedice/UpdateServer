@@ -1,13 +1,14 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Sentry;
+using StringHelp;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Sentry;
-using StringHelp;
 using UpdateServer;
 using UpdateServer.Classes;
 using WatsonTcp;
@@ -41,6 +42,7 @@ public class UpdateServerEntity
     public static bool _debug;
     public static ConsoleWriter consoleWriter = new();
     public static bool consolle = true;
+    
     public static int currCount;
     public static UpdateServerEntity instance;
     public static pooldelegate poolp;
@@ -48,14 +50,16 @@ public class UpdateServerEntity
     public static Dictionary<string, string> FileHashes = new();
     public static Dictionary<string, Dictionary<string, string>> DeltaFileStorage = new();
     private static List<string> ClientFiles = new();
+    static Dictionary<string, Thread> threads = new();
     private static SendNet _sendNet;
     #endregion
 
     #region Thread-Safe Collections and Locks
-    private static readonly object CurrentClientsLock = new();
-    private static readonly object OccupantsLock = new();
-    private static readonly object WaitingClientsLock = new();
-    private static readonly object DeltaFileStorageLock = new();
+    // Removed lock objects for thread safety
+    // private static readonly object CurrentClientsLock = new();
+    // private static readonly object OccupantsLock = new();
+    // private static readonly object WaitingClientsLock = new();
+    // private static readonly object DeltaFileStorageLock = new();
     
     private static Dictionary<Guid, UpdateClient> CurrentClients = new();
     private static List<ClientProcessor> Occupants = new();
@@ -85,19 +89,19 @@ public class UpdateServerEntity
                     File.ReadAllText("SingleDelta.json"));
         
         Puts($"DeltaStorage has {DeltaFileStorage.Count} Files");
+       
         Start();
         CheckUsers();
     }
+
+ 
     #endregion
 
     #region Public Static Methods - Core Operations
     public static void EndCall(UpdateClient client, ClientProcessor pr, string zipFileName, bool abort = false)
     {
-        lock (OccupantsLock)
-        {
-            Occupants.Remove(pr);
-        }
-
+        // Removed lock (OccupantsLock)
+        Occupants.Remove(pr);
         TickQueue();
         FinalizeZip(client._guid, zipFileName);
     }
@@ -105,11 +109,8 @@ public class UpdateServerEntity
     public static void FinalizeZip(Guid id, string zip, bool stored = false)
     {
         UpdateClient client;
-        lock (CurrentClientsLock)
-        {
-            if (!CurrentClients.TryGetValue(id, out client)) return;
-        }
-
+        // Removed lock (CurrentClientsLock)
+        if (!CurrentClients.TryGetValue(id, out client)) return;
         if (stored)
             Puts("SendStoredDelta");
         else
@@ -130,7 +131,9 @@ public class UpdateServerEntity
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-          
+#if DEBUG
+                throw;
+#endif
             }
     }
 
@@ -140,23 +143,15 @@ public class UpdateServerEntity
         {
             int waitingCount;
             int occupantsCount;
-            lock (WaitingClientsLock)
-            {
-                waitingCount = WaitingClients.Count;
-            }
-
-            lock (OccupantsLock)
-            {
-                occupantsCount = Occupants.Count;
-            }
+            // Removed lock (WaitingClientsLock)
+            waitingCount = WaitingClients.Count;
+            // Removed lock (OccupantsLock)
+            occupantsCount = Occupants.Count;
 
             Puts($"Waitqueue Count: {waitingCount}");
             Dictionary<string, Dictionary<string, string>> deltaCopy;
-            lock (DeltaFileStorageLock)
-            {
-                // Copy to avoid holding lock during IO
-                deltaCopy = new Dictionary<string, Dictionary<string, string>>(DeltaFileStorage);
-            }
+            // Removed lock (DeltaFileStorageLock)
+            deltaCopy = new Dictionary<string, Dictionary<string, string>>(DeltaFileStorage);
             try
             {
                 File.WriteAllText("SingleDelta.json", JsonConvert.SerializeObject(deltaCopy, Formatting.Indented));
@@ -165,6 +160,9 @@ public class UpdateServerEntity
             {
                 SentrySdk.CaptureException(ex);
                 Puts($"Error writing SingleDelta.json: {ex.Message}");
+#if DEBUG
+                throw;
+#endif
             }
 
             Puts($"Current Processors: {occupantsCount}");
@@ -176,28 +174,22 @@ public class UpdateServerEntity
                     Puts("Occupants less then MaxProcessors. Processing commence ");
                     SentrySdk.CaptureMessage("Occupants less than MaxProcessors, processing next client in queue.");
                     ClientProcessor nextone;
-                    lock (WaitingClientsLock)
-                    {
-                        nextone = WaitingClients.Dequeue();
-                    }
-
-                    lock (OccupantsLock)
-                    {
-                        Occupants.Add(nextone);
-                    }
-
+                    // Removed lock (WaitingClientsLock)
+                    nextone = WaitingClients.Dequeue();
+                    // Removed lock (OccupantsLock)
+                    Occupants.Add(nextone);
                     nextone.StartupThisOne();
                 }
-
-                lock (WaitingClientsLock)
-                {
-                    foreach (ClientProcessor c in WaitingClients) c.Notify();
-                }
+                // Removed lock (WaitingClientsLock)
+                foreach (ClientProcessor c in WaitingClients) c.Notify();
             }
         }
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
+#if DEBUG
+            throw;
+#endif
         }
     }
 
@@ -217,6 +209,9 @@ public class UpdateServerEntity
         {
             SentrySdk.CaptureException(ex);
             Puts($"Error in quickhashes: {ex.Message}");
+#if DEBUG
+            throw;
+#endif
         }
     }
 
@@ -225,11 +220,14 @@ public class UpdateServerEntity
         SyncResponse resp = null;
         try
         {
-            resp = await server.SendAndWaitAsync(5000, id, $"REPORT|{msg}").ConfigureAwait(false);
+            server.SendAndWaitAsync(5000, id, $"REPORT|{msg}");
         }
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex, s => { s.SetExtras(resp?.Metadata); });
+#if DEBUG
+            throw;
+#endif
         }
     }
 
@@ -252,15 +250,15 @@ public class UpdateServerEntity
         {
             SentrySdk.CaptureException(ex);
             Puts($"Error extracting zip: {ex.Message}");
+#if DEBUG
+            throw;
+#endif
         }
 
         SendProgress(currentUser._guid, "Enqueue for processing...").ConfigureAwait(false);
-        lock (WaitingClientsLock)
-        {
-            ClientProcessor newprocessor = new(currentUser);
-            WaitingClients.Enqueue(newprocessor);
-        }
-
+        // Removed lock (WaitingClientsLock)
+        ClientProcessor newprocessor = new(currentUser);
+        WaitingClients.Enqueue(newprocessor);
         TickQueue();
         return Task.CompletedTask;
     }
@@ -282,10 +280,8 @@ public class UpdateServerEntity
             Puts("SendNetData...");
             SentrySdk.AddBreadcrumb($"SendNetData called for client {id}, zip: {zip}, stored: {stored}");
             UpdateClient client;
-            lock (CurrentClientsLock)
-            {
-                if (!CurrentClients.TryGetValue(id, out client)) return;
-            }
+            // Removed lock (CurrentClientsLock)
+            if (!CurrentClients.TryGetValue(id, out client)) return;
 
             try
             {
@@ -316,6 +312,9 @@ public class UpdateServerEntity
                     catch (Exception ex)
                     {
                         SentrySdk.CaptureMessage($"Failed to delete file {x}: {ex.Message}");
+#if DEBUG
+                        throw;
+#endif
                     }
 
                 transaction.Finish(SpanStatus.Ok);
@@ -325,13 +324,18 @@ public class UpdateServerEntity
                 SentrySdk.CaptureException(ex);
                 transaction.Finish(SpanStatus.InternalError);
                 Puts($"Exception in SendNetData: {ex.Message}");
+#if DEBUG
                 throw;
+#endif
             }
         }
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
             transaction.Finish(SpanStatus.InternalError);
+#if DEBUG
+            throw;
+#endif
             throw;
         }
     }
@@ -469,12 +473,15 @@ public class UpdateServerEntity
             }
 
             _client.filetoDelete.Add(zipFileName2);
-            await SendZipFile(_client, zipFileName2, true).ConfigureAwait(false);
+           SendZipFile(_client, zipFileName2, true);
         }
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
             Puts($"Error in CreateZipFile: {ex.Message}");
+#if DEBUG
+            throw;
+#endif
         }
     }
 
@@ -504,7 +511,9 @@ public class UpdateServerEntity
             SentrySdk.CaptureException(ex);
             transaction.Finish(SpanStatus.InternalError);
             Puts($"Error in SendZipFile: {ex.Message}");
+#if DEBUG
             throw;
+#endif
         }
     }
     #endregion
@@ -517,10 +526,8 @@ public class UpdateServerEntity
         {
             var Meta = args.Metadata;
             UpdateClient user;
-            lock (CurrentClientsLock)
-            {
-                user = CurrentClients[args.Client.Guid];
-            }
+            // Removed lock (CurrentClientsLock)
+            user = CurrentClients[args.Client.Guid];
 
             string userFolder = user.ClientFolder;
             string zippath = Path.Combine(userFolder, "signatures.zip");
@@ -538,13 +545,15 @@ public class UpdateServerEntity
 
                 file.Flush();
             }
-
-            _ = Extract(zippath, user);
+            Extract(zippath, user);
         }
         catch (Exception e)
         {
             SentrySdk.CaptureException(e);
             Puts($"Error in StreamReceived : {e.Message}");
+#if DEBUG
+            throw;
+#endif
         }
     }
 
@@ -554,50 +563,39 @@ public class UpdateServerEntity
         SentrySdk.AddBreadcrumb("New Syncrequest");
         string stringmsg = Encoding.UTF8.GetString(req.Data);
         UpdateClient _client;
-        lock (CurrentClientsLock)
-        {
+       
             _client = CurrentClients[req.Client.Guid];
-        }
-
-        string Header = stringmsg.Split('|').First();
-        string sourcemessage = stringmsg.Split('|').Last();
+        
+        var Header = stringmsg.Split('|').First();
+        var sourcemessage = stringmsg.Split('|').Last();
         if (Header == "MISS")
         {
             UpdateClient client;
-            lock (CurrentClientsLock)
-            {
+            
                 client = CurrentClients[req.Client.Guid];
-            }
-
+            
             var adding = JsonConvert.DeserializeObject<Dictionary<string, string>>(sourcemessage).Keys.ToList();
             client.dataToAdd = adding;
-            SentrySdk.AddBreadcrumb(
-                $"Received MISS request from client {req.Client.Guid} with {adding.Count} files to add.");
+            SentrySdk.AddBreadcrumb($"Received MISS request from client {req.Client.Guid} with {adding.Count} files to add.");
             _ = Task.Run(() => PackAdditionalFiles(client));
             return new SyncResponse(req, "null");
         }
-
         if (Header == "DIFF")
         {
             _client.AddMissMatchFilelist(JsonConvert.DeserializeObject<Dictionary<string, string>>(sourcemessage));
-            string sendb = JsonConvert.SerializeObject(_client.GetTrimmedList());
-            SentrySdk.AddBreadcrumb(
-                $"Received DIFF request from client {_client._guid} with {sendb.Length} bytes to send.");
+            var sendb = JsonConvert.SerializeObject(_client.GetTrimmedList());
+            SentrySdk.AddBreadcrumb($"Received DIFF request from client {_client._guid} with {sendb.Length} bytes to send.");
             if (_client.MatchedDeltas.Count() >= _client.missmatchedFilehashes.Count())
             {
                 await SendProgress(_client._guid, "Enqueue for processing...").ConfigureAwait(false);
-                ClientProcessor newprocessor = new(_client);
-                lock (WaitingClientsLock)
-                {
+                var newprocessor = new ClientProcessor(_client);
+                
                     WaitingClients.Enqueue(newprocessor);
-                }
-
+                
                 TickQueue();
             }
-
-            return new SyncResponse(req, _client.MatchedDeltas.Count() + "|" + sendb);
+            return new SyncResponse(req, _client.MatchedDeltas.Count().ToString() + "|" + sendb);
         }
-
         return new SyncResponse(req, "null");
     }
 
@@ -612,13 +610,10 @@ public class UpdateServerEntity
             if (!Directory.Exists(fullpath)) Directory.CreateDirectory(fullpath);
             if (!Directory.Exists(clientfolder)) Directory.CreateDirectory(clientfolder);
             string Clientdeltazip = Path.Combine(clientfolder, $"{fixedip}.zip");
-            lock (CurrentClientsLock)
-            {
-                CurrentClients.Add(e.Client.Guid,
-                    new UpdateClient(e.Client.Guid, e.Client.IpPort, clientfolder, Clientdeltazip));
-                currCount++;
-            }
-
+            UpdateClient upc = null;
+            upc = new UpdateClient(e.Client.Guid, e.Client.IpPort, clientfolder, Clientdeltazip);
+            CurrentClients.Add(e.Client.Guid, upc);
+            currCount++;
             _ = quickhashes(e.Client.Guid);
             SentrySdk.CaptureMessage(
                 $"Client {e.Client.Guid} connected from {e.Client.IpPort} with folder {clientfolder} and {Clientdeltazip}");
@@ -626,8 +621,10 @@ public class UpdateServerEntity
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
+#if DEBUG
+            throw;
+#endif
         }
-
         TickQueue();
         CheckforCleanup();
         CheckUsers();
@@ -637,23 +634,17 @@ public class UpdateServerEntity
     {
         Puts("Client Disconnected");
         ClientProcessor result = null;
-        lock (OccupantsLock)
+        // Removed lock (OccupantsLock)
+        result = Occupants.FirstOrDefault(x => x.tcpipport == args.Client.IpPort);
+        if (result != null)
         {
-            result = Occupants.FirstOrDefault(x => x.tcpipport == args.Client.IpPort);
-            if (result != null)
-            {
-                Occupants.Remove(result);
-                result.Dispose();
-                Puts("ClientDisconnect recognised . Removed.");
-            }
+            Occupants.Remove(result);
+            result.Dispose();
+            Puts("ClientDisconnect recognised . Removed.");
         }
-
-        lock (CurrentClientsLock)
-        {
-            if (CurrentClients.ContainsKey(args.Client.Guid))
-                CurrentClients.Remove(args.Client.Guid);
-        }
-
+        // Removed lock (CurrentClientsLock)
+        if (CurrentClients.ContainsKey(args.Client.Guid))
+            CurrentClients.Remove(args.Client.Guid);
         TickQueue();
     }
     #endregion
@@ -672,25 +663,22 @@ public class UpdateServerEntity
                 Guid guid = Guid.Parse(thisone);
                 if (!server.IsClientConnected(guid))
                 {
-                    lock (OccupantsLock)
+                    // Removed lock (OccupantsLock)
+                    var processorsToEnd = Occupants
+                        .Where(proc => proc._client != null && proc._client._guid == guid).ToList();
+                    foreach (ClientProcessor proc in processorsToEnd)
                     {
-                        var processorsToEnd = Occupants
-                            .Where(proc => proc._client != null && proc._client._guid == guid).ToList();
-                        foreach (ClientProcessor proc in processorsToEnd)
+                        try
                         {
-                            try
-                            {
-                                proc.Dispose();
-                            }
-                            catch (Exception ex)
-                            {
-                                SentrySdk.CaptureException(ex);
-                            }
-
-                            Occupants.Remove(proc);
+                            proc.Dispose();
+                            threads[guid.ToString()].Abort();
                         }
+                        catch (Exception ex)
+                        {
+                            SentrySdk.CaptureException(ex);
+                        }
+                        Occupants.Remove(proc);
                     }
-
                     int maxRetries = 5;
                     int delayMs = 500;
                     for (int attempt = 0; attempt < maxRetries; attempt++)
@@ -703,17 +691,26 @@ public class UpdateServerEntity
                         {
                             SentrySdk.CaptureException(ioEx);
                             DelayAsync(delayMs).Wait();
+#if DEBUG
+                            throw;
+#endif
                         }
                         catch (UnauthorizedAccessException uaEx)
                         {
                             SentrySdk.CaptureException(uaEx);
                             DelayAsync(delayMs).Wait();
+#if DEBUG
+                            throw;
+#endif
                         }
                 }
             }
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
+#if DEBUG
+                throw;
+#endif
             }
     }
 
