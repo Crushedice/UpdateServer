@@ -142,6 +142,10 @@ namespace UpdateServer
         [STAThread]
         private static void Main(string[] args)
         {
+            // Ask if this is a new update
+            Console.Write("Is this a new update? (y/n): ");
+            string answer = Console.ReadLine();
+            bool isNewUpdate = answer != null && answer.Trim().ToLower() == "y";
             // Load Sentry configuration
             var sentryConfig = SentryConfig.Instance;
 
@@ -151,7 +155,7 @@ namespace UpdateServer
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
                 SentrySdk.AddBreadcrumb("Application started", "app.start");
 
-                _ = new Heart();
+                _ = new Heart(isNewUpdate);
                 
                 // Start the HTTP server for API
                 StartHttpServer();
@@ -183,9 +187,16 @@ namespace UpdateServer
         }
         #endregion
 
+        
+
         #region HTTP Server
         private static void StartHttpServer()
         {
+
+
+#if DEBUG
+            return;
+#endif 
             try
             {
                 httpListener = new HttpListener();

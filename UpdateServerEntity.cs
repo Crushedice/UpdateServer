@@ -197,7 +197,7 @@ public class UpdateServerEntity
     {
         try
         {
-            var h = InputDictionary(FileHashes);
+            var h = InputDictionary(Heart.FileHashes);
 
             _ = await server.SendAndWaitAsync(50000, id, "VERSION|" + Heart.Vversion);
 

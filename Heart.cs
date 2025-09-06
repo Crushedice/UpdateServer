@@ -2,11 +2,20 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using Sentry;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace UpdateServer
 {
@@ -29,7 +38,7 @@ namespace UpdateServer
         public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
         public static List<string> ThreadList = new List<string>();
         public static string Hashes = string.Empty;
-        public static string Vversion = string.Empty;
+        public static string Vversion = "0000";
         
         // UI Components (if used)
         public static TextBox Inputbox;
@@ -47,29 +56,34 @@ namespace UpdateServer
         #endregion
 
         #region Constructor
-        public Heart()
+        public Heart(bool newupdate)
         {
-            InitializeVersion();
-            StartServer();
+            if (newupdate)
+            {
+                ResetUpdate();
+
+            }
+            else
+            {   
+                StartServer();
+            }
+
+             
         }
         #endregion
 
         #region Initialization Methods
-        private void InitializeVersion()
+        
+        private void ResetUpdate()
         {
-            DirectoryInfo directoryInfo = new DirectoryInfo(Directory.GetCurrentDirectory());
-
-            if (File.Exists("Version.txt"))
-            {
-                string version = File.ReadAllText("Version.txt");
-                Vversion = version;
-            }
-            else
-            {
-                Console.WriteLine("Error - Version File Not Found!!!");
-                Vversion = "2318";
-            }
+            File.Delete("SingleDelta.json");
+            Directory.GetFiles("DeltaStorage").ToList().ForEach(File.Delete);
+            Directory.GetFiles("ClientFolders").ToList().ForEach(File.Delete);
+            Directory.GetDirectories("ClientFolders").ToList().ForEach(dir => Directory.Delete(dir, true));
+            File.Delete("Hashes.json");
+            StartServer();
         }
+
 
         private async void StartServer()
         {
@@ -93,11 +107,10 @@ namespace UpdateServer
 
         private void LoadHashesFromFile()
         {
-            lock (FileHashesLock)
-            {
+            
                 Hashes = File.ReadAllText("Hashes.json");
                 FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
-            }
+            
         }
         #endregion
 
