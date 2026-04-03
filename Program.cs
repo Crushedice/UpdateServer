@@ -144,7 +144,7 @@ namespace UpdateServer
         {
             // Load Sentry configuration
             var sentryConfig = SentryConfig.Instance;
-
+            AppConfigResolver.InitAsync().GetAwaiter().GetResult();
             // Ensure Sentry events are flushed on exit
             using (SentrySdk.Init(ConfigureSentry))
             {
@@ -186,14 +186,13 @@ namespace UpdateServer
         #region HTTP Server
         private static void StartHttpServer()
         {
-           
             try
             {
                 httpListener = new HttpListener();
-                httpListener.Prefixes.Add("http://51.91.214.177:5500/");
+                httpListener.Prefixes.Add("http://*:5500/");
                 httpListener.Start();
                 
-                Console.WriteLine("Feedback API server started on http://51.91.214.177:5500/");
+                Console.WriteLine("Feedback API server started on http://*:5500/");
                 SentrySdk.AddBreadcrumb("HTTP API server started", "api.start");
                 
                 // Start listening for requests in background
@@ -418,7 +417,7 @@ namespace UpdateServer
         {
             var sentryConfig = SentryConfig.Instance;
             
-            options.Dsn = sentryConfig.Dsn;
+            options.Dsn = AppConfigResolver.Url;
             options.Environment = sentryConfig.Environment;
             options.Debug = sentryConfig.Debug;
             options.TracesSampleRate = sentryConfig.TracesSampleRate;
@@ -429,10 +428,10 @@ namespace UpdateServer
             
             options.AddDiagnosticSourceIntegration();
             options.DiagnosticLevel = sentryConfig.Debug ? SentryLevel.Debug : SentryLevel.Error;
-            options.SetBeforeSend(EnrichSentryEvent);
+           
         }
 
-        private static SentryEvent EnrichSentryEvent(SentryEvent @event, SentryHint hint)
+        private static SentryEvent EnrichSentryEvent(SentryEvent @event)
         {
             if (@event.Exception == null) return @event;
 

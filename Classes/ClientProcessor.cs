@@ -164,7 +164,7 @@ namespace UpdateServer.Classes
                 string[] allDeltas = Directory.GetFiles(_client.ClientFolder, "*", SearchOption.AllDirectories);
                // await ProcessDeltaFiles(allDeltas, transaction);
 
-                await ProcessDeltaFilesParallel(allDeltas,transaction).ConfigureAwait(true);
+                await ProcessDeltaFilesParallel(allDeltas).ConfigureAwait(true);
 
 
 
@@ -197,13 +197,13 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task ProcessDeltaFiles(string[] allDeltas, ITransactionTracer transaction)
+        private async Task ProcessDeltaFiles(string[] allDeltas)
         {
             int allc = allDeltas.Length;
             int prg = 0;
             string deltaFilePath = "";
 
-            var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
+            var deltaFilesSpan = SentrySdk.StartTransaction("delta.creation_loop", "Delta creation loop");
 
             foreach (string filePath in allDeltas)
             {
@@ -225,7 +225,7 @@ namespace UpdateServer.Classes
                 
                 try
                 {
-                    deltaFilePath = await ProcessSingleDeltaFile(filePath, currentProgress, allc, transaction);
+                    deltaFilePath = await ProcessSingleDeltaFile(filePath, currentProgress, allc);
                 }
                 catch (Exception e)
                 {
@@ -238,7 +238,7 @@ namespace UpdateServer.Classes
             deltaFilesSpan.Finish();
         }
 
-        private async Task<string> ProcessSingleDeltaFile(string filePath, int currentProgress, int totalCount, ITransactionTracer transaction)
+        private async Task<string> ProcessSingleDeltaFile(string filePath, int currentProgress, int totalCount)
         {
             string relativePath = filePath.Replace(_client.ClientFolder, string.Empty);
             string newFilePath = Path.GetFullPath(UpdateServerEntity.Rustfolderroot + "\\..") + relativePath.Replace(".octosig", string.Empty);
@@ -260,8 +260,8 @@ namespace UpdateServer.Classes
             if (!Directory.Exists(deltaOutputDirectory))
                 Directory.CreateDirectory(deltaOutputDirectory);
 
-            await CreateDeltaFile(filePath, newFilePath, deltaFilePath, filename, transaction);
-            await ProcessDeltaHash(deltaFilePath, origfile, OrigPath, transaction);
+            await CreateDeltaFile(filePath, newFilePath, deltaFilePath, filename);
+            await ProcessDeltaHash(deltaFilePath, origfile, OrigPath);
 
             // Removed lock (_dataToSendLock)
             _client.dataToSend.Add(deltaFilePath);
@@ -269,9 +269,9 @@ namespace UpdateServer.Classes
             return deltaFilePath;
         }
 
-        private async Task CreateDeltaFile(string signatureFile, string newFile, string deltaFile, string filename, ITransactionTracer transaction)
+        private async Task CreateDeltaFile(string signatureFile, string newFile, string deltaFile, string filename)
         {
-            var fileDeltaSpan = transaction.StartChild("delta.file", $"Delta for {filename}");
+            var fileDeltaSpan = SentrySdk.StartTransaction("delta.file", $"Delta for {filename}");
             
             try
             {
@@ -292,9 +292,9 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task ProcessDeltaHash(string deltaFilePath, string origfile, string origPath, ITransactionTracer transaction)
+        private async Task ProcessDeltaHash(string deltaFilePath, string origfile, string origPath)
         {
-            var hashSpan = transaction.StartChild("delta.hash", $"Hash for {deltaFilePath}");
+            var hashSpan = SentrySdk.StartTransaction("delta.hash", $"Hash for {deltaFilePath}");
             
             try
             {
@@ -369,12 +369,12 @@ namespace UpdateServer.Classes
       //      
       //  }
 
-        private async Task ProcessDeltaFilesParallel(string[] allDeltas, ITransactionTracer transaction)
+        private async Task ProcessDeltaFilesParallel(string[] allDeltas)
         {
             int allc = allDeltas.Length;
             int prg = 0;
             
-            var deltaFilesSpan = transaction.StartChild("delta.creation_loop", "Delta creation loop");
+            var deltaFilesSpan = SentrySdk.StartTransaction("delta.creation_loop", "Delta creation loop");
 
           // Use SemaphoreSlim to control degree of parallelism
             int maxDegree = Math.Max(5,25);
@@ -391,7 +391,7 @@ namespace UpdateServer.Classes
                         var size = GetBytesReadable(inf.Length);
                         
 
-                        var result = await ProcessDeltaFileAsync(x, transaction, allc);
+                        var result = await ProcessDeltaFileAsync(x, allc);
                         int currentProgress = Interlocked.Increment(ref prg);
                         if (result.success)
                         {
@@ -416,7 +416,7 @@ namespace UpdateServer.Classes
             deltaFilesSpan.Finish();
         }
 
-        private async Task<(bool success, string deltaFilePath)> ProcessDeltaFileAsync(string filePath, ITransactionTracer transaction, int totalCount)
+        private async Task<(bool success, string deltaFilePath)> ProcessDeltaFileAsync(string filePath, int totalCount)
         {
             try
             {
@@ -454,7 +454,7 @@ namespace UpdateServer.Classes
                 });
                 
 
-                string localDeltaFilePath = await CreateDeltaFileAsync(filePath, newFilePath, relativePath, transaction);
+                string localDeltaFilePath = await CreateDeltaFileAsync(filePath, newFilePath, relativePath);
 
 
 
@@ -464,7 +464,7 @@ namespace UpdateServer.Classes
 
 
 
-                await ProcessDeltaHashAsync(localDeltaFilePath, origfile, transaction);
+                await ProcessDeltaHashAsync(localDeltaFilePath, origfile);
 
 
 
@@ -488,7 +488,7 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task<string> CreateDeltaFileAsync(string signatureFilePath, string newFilePath, string relativePath, ITransactionTracer transaction)
+        private async Task<string> CreateDeltaFileAsync(string signatureFilePath, string newFilePath, string relativePath)
         {
             
             try
@@ -529,11 +529,11 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task ProcessDeltaHashAsync(string deltaFilePath, string origfile, ITransactionTracer transaction)
+        private async Task ProcessDeltaHashAsync(string deltaFilePath, string origfile)
         {
             try
             {
-                var hashSpan = transaction.StartChild("delta.hash", $"Hash for {Path.GetFileName(deltaFilePath)}");
+                var hashSpan = SentrySdk.StartTransaction("delta.hash", $"Hash for {Path.GetFileName(deltaFilePath)}");
                 
                 try
                 {
@@ -597,7 +597,7 @@ namespace UpdateServer.Classes
                 
                 SentrySdk.AddBreadcrumb("Deltazip", "Info", "", _client.missmatchedFilehashes);
                 
-                await CreateZipFileContent(zipFileName, allitems, transaction);
+                await CreateZipFileContent(zipFileName, allitems);
                 
                 // Removed lock (_fileToDeleteLock)
                 _client.filetoDelete.Add(zipFileName);
@@ -625,13 +625,13 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task CreateZipFileContent(string zipFileName, int allitems, ITransactionTracer transaction)
+        private async Task CreateZipFileContent(string zipFileName, int allitems)
         {
             int itemcount = 0;
             
             try
             {
-                var deltaFilesSpan = transaction.StartChild("zip.deltafiles", "Packing delta files");
+                var deltaFilesSpan = SentrySdk.StartTransaction("zip.deltafiles", "Packing delta files");
                 
                 using (ZipArchive zip = ZipFile.Open(zipFileName, ZipArchiveMode.Create))
                 {
@@ -690,11 +690,11 @@ namespace UpdateServer.Classes
                 
                 if (stored)
                 {
-                    await SendStoredZipFile(zip, transaction, cancellationToken);
+                    await SendStoredZipFile(zip, cancellationToken);
                 }
                 else
                 {
-                    await SendDeltaZipFile(zip, transaction, cancellationToken);
+                    await SendDeltaZipFile(zip,  cancellationToken);
                     UpdateServerEntity.EndCall(_client, this, zip);
                 }
                 
@@ -718,9 +718,9 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task SendStoredZipFile(string zip, ITransactionTracer transaction, CancellationToken cancellationToken)
+        private async Task SendStoredZipFile(string zip, CancellationToken cancellationToken)
         {
-            var storedSpan = transaction.StartChild("send.stored_zip", "Sending stored zip file");
+            var storedSpan = SentrySdk.StartTransaction("send.stored_zip", "Sending stored zip file");
             try
             {
                 using (Stream source = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.Asynchronous))
@@ -734,9 +734,9 @@ namespace UpdateServer.Classes
             }
         }
 
-        private async Task SendDeltaZipFile(string zip, ITransactionTracer transaction, CancellationToken cancellationToken)
+        private async Task SendDeltaZipFile(string zip,  CancellationToken cancellationToken)
         {
-            var deltaSpan = transaction.StartChild("send.delta_zip", "Sending delta zip file");
+            var deltaSpan = SentrySdk.StartTransaction("send.delta_zip", "Sending delta zip file");
             try
             {
                 var metadata = new Dictionary<string, object> { { "1", "2" } };

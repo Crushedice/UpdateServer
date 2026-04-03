@@ -205,7 +205,7 @@ namespace UpdateServer.Classes
         {
             SentrySdk.ConfigureScope(scope =>
             {
-                scope.User = new SentryUser
+                scope.User = new User
                 {
                     Id = userId,
                     IpAddress = ipAddress

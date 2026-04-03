@@ -30,7 +30,7 @@ public class UpdateServerEntity
 #if DEBUG
     private static string serverIp = "127.0.0.1";
 #else
-    private static string serverIp = "51.91.214.177";
+    private static string serverIp = "0.0.0.0";
 #endif
     private static int serverPort = 9090;
     private static bool useSsl = false;
@@ -274,7 +274,7 @@ public class UpdateServerEntity
     public async Task SendNetData(Guid id, string zip, bool stored = false)
     {
         SentrySdk.AddBreadcrumb($"SendNetData started for client {id}, zip: {zip}, stored: {stored}");
-        ITransactionTracer transaction = SentrySdk.StartTransaction("SendNetData", "task");
+       
         try
         {
             Puts("SendNetData...");
@@ -317,12 +317,12 @@ public class UpdateServerEntity
 #endif
                     }
 
-                transaction.Finish(SpanStatus.Ok);
+                SentrySdk.AddBreadcrumb($"Finished SendNetData for client {id}.", "performance.operation.finish");
             }
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-                transaction.Finish(SpanStatus.InternalError);
+                SentrySdk.AddBreadcrumb($"Error in SendNetData for client {id}: {ex.Message}", "performance.operation.error");
                 Puts($"Exception in SendNetData: {ex.Message}");
 #if DEBUG
                 throw;
@@ -332,7 +332,7 @@ public class UpdateServerEntity
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
-            transaction.Finish(SpanStatus.InternalError);
+            SentrySdk.AddBreadcrumb($"Error in SendNetData for client {id}: {ex.Message}", "performance.operation.error");
 #if DEBUG
             throw;
 #endif
@@ -487,7 +487,7 @@ public class UpdateServerEntity
 
     private static async Task SendZipFile(UpdateClient _client, string zip, bool stored = false)
     {
-        ITransactionTracer transaction = SentrySdk.StartTransaction("SendZipFile", "task");
+        
         try
         {
             using (FileStream source = new(zip, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096,
@@ -504,12 +504,12 @@ public class UpdateServerEntity
                 }
             }
 
-            transaction.Finish(SpanStatus.Ok);
+            SentrySdk.AddBreadcrumb($"Finished SendZipFile for client {_client._guid}.", "performance.operation.finish");
         }
         catch (Exception ex)
         {
             SentrySdk.CaptureException(ex);
-            transaction.Finish(SpanStatus.InternalError);
+            SentrySdk.AddBreadcrumb($"Error in SendZipFile for client {_client._guid}: {ex.Message}", "performance.operation.error");
             Puts($"Error in SendZipFile: {ex.Message}");
 #if DEBUG
             throw;
