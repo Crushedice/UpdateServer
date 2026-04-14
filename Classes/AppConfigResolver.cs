@@ -17,7 +17,7 @@ public static class AppConfigResolver
     // -------------------------------------------------------------------------
 
     /// <summary>URL to the shared config JSON (same for all apps).</summary>
-    private const string ConfigEndpoint = "https://rusticaland.com/files/Updates/app-urls.json";
+    private const string ConfigEndpoint = "https://dx.dmt.ovh/sentryurls";
 
     /// <summary>This app's key inside the JSON (unique per project).</summary>
     private const string AppIdentifier = "updateserver"; // e.g. "nerv-agent", "sa-launcher"

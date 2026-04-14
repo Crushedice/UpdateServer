@@ -2,20 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using Sentry;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace UpdateServer
 {
@@ -26,27 +17,29 @@ namespace UpdateServer
         #endregion
 
         #region Thread-Safe Locks
-        private static readonly object CurUpdatersLock = new object();
-        private static readonly object FileHashesLock = new object();
-        private static readonly object SingleStoredDeltaLock = new object();
-        private static readonly object ThreadListLock = new object();
+        private static readonly object CurUpdatersLock = new();
+        private static readonly object FileHashesLock = new();
+        // Locks retained for compound operations on the following concurrent collections.
+        private static readonly object SingleStoredDeltaLock = new();
+        private static readonly object ThreadListLock = new();
         #endregion
 
         #region Static Properties and Fields
-        public static Dictionary<string, string> CurUpdaters = new Dictionary<string, string>();
-        public static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
-        public static Dictionary<string, string> singleStoredDelta = new Dictionary<string, string>();
-        public static List<string> ThreadList = new List<string>();
+        // Use thread‑safe collections for shared mutable state.
+        public static System.Collections.Concurrent.ConcurrentDictionary<string, string> CurUpdaters = new();
+        public static System.Collections.Concurrent.ConcurrentDictionary<string, string> FileHashes = new();
+        public static System.Collections.Concurrent.ConcurrentDictionary<string, string> singleStoredDelta = new();
+        public static System.Collections.Concurrent.ConcurrentQueue<string> ThreadList = new();
         public static string Hashes = string.Empty;
-        public static string Vversion = "0000";
-        
+        public static string Vversion = string.Empty;
+
         // UI Components (if used)
         public static TextBox Inputbox;
         public static RichTextBox ProgressOvLk;
         public static ListBox UpdaterGrid;
         public static Label VersionLabel;
         public static sendmsg sendmessage;
-        
+
         // Internal
         private static Thread Server;
         #endregion
@@ -56,34 +49,33 @@ namespace UpdateServer
         #endregion
 
         #region Constructor
-        public Heart(bool newupdate)
+        public Heart()
         {
-            if (newupdate)
-            {
-                ResetUpdate();
+            InitializeVersion();
+            StartServer();
+        }
 
-            }
-            else
-            {   
-                StartServer();
-            }
-
-             
+        public Heart(bool isNewUpdate) : this()
+        {
         }
         #endregion
 
         #region Initialization Methods
-        
-        private void ResetUpdate()
+        private void InitializeVersion()
         {
-            File.Delete("SingleDelta.json");
-            Directory.GetFiles("DeltaStorage").ToList().ForEach(File.Delete);
-            Directory.GetFiles("ClientFolders").ToList().ForEach(File.Delete);
-            Directory.GetDirectories("ClientFolders").ToList().ForEach(dir => Directory.Delete(dir, true));
-            File.Delete("Hashes.json");
-            StartServer();
-        }
+            DirectoryInfo directoryInfo = new DirectoryInfo(Directory.GetCurrentDirectory());
 
+            if (File.Exists("Version.txt"))
+            {
+                string version = File.ReadAllText("Version.txt");
+                Vversion = version;
+            }
+            else
+            {
+                Console.WriteLine("Error - Version File Not Found!!!");
+                Vversion = "2318";
+            }
+        }
 
         private async void StartServer()
         {
@@ -107,43 +99,69 @@ namespace UpdateServer
 
         private void LoadHashesFromFile()
         {
-            
+            lock (FileHashesLock)
+            {
                 Hashes = File.ReadAllText("Hashes.json");
-                FileHashes = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
-            
+                var deserialized = JsonConvert.DeserializeObject<Dictionary<string, string>>(Hashes);
+                // Replace the concurrent dictionary with a new concurrent instance based on the
+                // deserialized data. If deserialized is null (e.g. empty file) fall back to empty
+                // dictionary.
+                FileHashes = deserialized != null
+                    ? new System.Collections.Concurrent.ConcurrentDictionary<string, string>(deserialized)
+                    : new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+            }
         }
         #endregion
 
         #region Static Methods - Thread Management
         public static void PoolMod(string thread, bool add)
         {
-            lock (ThreadListLock)
+            // Add or remove a thread name in a thread‑safe manner. ConcurrentQueue does not support
+            // removal directly, so removal is performed by recreating the queue. A lock is used only
+            // during the swap to avoid races with other removals.
+            if (add)
             {
-                if (add)
-                    ThreadList.Add(thread);
-                else
-                    ThreadList.Remove(thread);
+                ThreadList.Enqueue(thread);
+            }
+            else
+            {
+                lock (ThreadListLock)
+                {
+                    var newQueue = new System.Collections.Concurrent.ConcurrentQueue<string>();
+                    while (ThreadList.TryDequeue(out var item))
+                    {
+                        if (!string.Equals(item, thread, StringComparison.OrdinalIgnoreCase))
+                        {
+                            newQueue.Enqueue(item);
+                        }
+                    }
+                    ThreadList = newQueue;
+                }
             }
             ShowPoolThreads();
         }
 
         public static void ShowPoolThreads()
         {
+            // If a UI control is bound, clear it; then write thread names to the console. Because
+            // ConcurrentQueue preserves insertion order, this enumerates threads in the order they
+            // were added. Note: enumeration is snapshot based and safe across threads.
             ProgressOvLk?.Clear();
-            Console.WriteLine("Threads: \n");
-
-            foreach (string thread in ThreadList) 
+            Console.WriteLine("Threads:\n");
+            foreach (var thread in ThreadList)
+            {
                 Console.WriteLine(thread + "\n");
+            }
         }
         #endregion
 
         #region Static Methods - Delta Management
         public static void addsingledelta(string key, string value)
         {
-            lock (SingleStoredDeltaLock)
-            {
-                singleStoredDelta.Add(key, value);
-            }
+            // Add or update the value for the given key. Using AddOrUpdate ensures that
+            // concurrent writers do not throw. The existing value will be replaced if the
+            // key already exists.
+            singleStoredDelta.AddOrUpdate(key, value, (_, __) => value);
         }
         #endregion
 
@@ -157,13 +175,13 @@ namespace UpdateServer
             switch (indicator)
             {
                 case 1: // Client starts updating
-                    if (!UpdaterGrid.Items.Contains(name)) 
+                    if (!UpdaterGrid.Items.Contains(name))
                         UpdaterGrid.Items.Add(name);
                     UpdaterGrid.Refresh();
                     break;
 
                 case 2: // Client done updating / Client got delta files
-                    if (UpdaterGrid.Items.Contains(name)) 
+                    if (UpdaterGrid.Items.Contains(name))
                         UpdaterGrid.Items.Remove(name);
                     UpdaterGrid.Refresh();
                     break;
@@ -184,10 +202,10 @@ namespace UpdateServer
         {
             TreeNode curNode = addInMe.Add(directoryInfo.Name);
 
-            foreach (FileInfo file in directoryInfo.GetFiles()) 
+            foreach (FileInfo file in directoryInfo.GetFiles())
                 curNode.Nodes.Add(file.FullName, file.Name);
 
-            foreach (DirectoryInfo subdir in directoryInfo.GetDirectories()) 
+            foreach (DirectoryInfo subdir in directoryInfo.GetDirectories())
                 BuildTree(subdir, curNode.Nodes);
         }
         #endregion
