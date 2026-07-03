@@ -15,11 +15,11 @@ namespace UpdateServer
     public class HashGen
     {
         #region Private Fields
-        private static Dictionary<string, string> Errs = new Dictionary<string, string>();
-        private static Dictionary<string, string> FileHashes = new Dictionary<string, string>();
-        private static int files;
-        private static DirectoryInfo RustFolder;
-        private static Stopwatch timr;
+        private Dictionary<string, string> Errs = new Dictionary<string, string>();
+        private Dictionary<string, string> FileHashes = new Dictionary<string, string>();
+        private int files;
+        private DirectoryInfo RustFolder;
+        private Stopwatch timr;
         #endregion
 
         #region Constructor
@@ -44,8 +44,17 @@ namespace UpdateServer
         #region Public Methods
         public async Task Run()
         {
+            if (RustFolder == null)
+            {
+                // No Rust folder means nothing to hash; still write (empty) result files
+                // so the caller does not crash trying to read a missing Hashes.json.
+                Console.WriteLine("Rust Folder not Found - writing empty hash list.");
+                SaveResults();
+                return;
+            }
+
             timr.Start();
-            
+
             string[] allfiles = Directory.GetFiles(RustFolder.ToString(), "*", SearchOption.AllDirectories);
             files = allfiles.Count();
 
@@ -73,30 +82,32 @@ namespace UpdateServer
             System.Collections.Concurrent.ConcurrentDictionary<string, string> concurrentErrs)
         {
             // Process files in parallel with controlled concurrency
-            var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2); // Limit concurrent operations
             int totalSkipped = 0;
-            
-            var tasks = allfiles.Select(async (file, index) =>
+            int[] results;
+            using (var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2)) // Limit concurrent operations
             {
-                await semaphore.WaitAsync();
-                try
+                var tasks = allfiles.Select(async (file, index) =>
                 {
-                    return await ProcessSingleFileAsync(file, index, concurrentFileHashes, concurrentErrs);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        return await ProcessSingleFileAsync(file, index, concurrentFileHashes, concurrentErrs);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
 
-            var results = await Task.WhenAll(tasks);
-            
+                results = await Task.WhenAll(tasks);
+            }
+
             // Sum up all the skipped files
             foreach (var skipped in results)
             {
                 totalSkipped += skipped;
             }
-            
+
             return totalSkipped;
         }
 

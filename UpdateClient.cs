@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 
 namespace UpdateServer
 {
@@ -43,13 +42,13 @@ namespace UpdateServer
         #endregion
 
         #region Collections
-        public List<string> dataToAdd = new List<string>();
-        public List<string> dataToSend = new List<string>();
-        public List<string> filetoDelete = new List<string>();
-        public Dictionary<string, string> filedata = new Dictionary<string, string>();
-        public Dictionary<string, string> MatchedDeltas = new Dictionary<string, string>();
-        public Dictionary<string, string> missmatchedFilehashes = new Dictionary<string, string>();
-        public Dictionary<string, string> TrimmedFileHashes = new Dictionary<string, string>();
+        // All access goes through the locked accessor methods below.
+        private List<string> dataToAdd = new List<string>();
+        private readonly List<string> dataToSend = new List<string>();
+        private readonly List<string> filetoDelete = new List<string>();
+        private readonly Dictionary<string, string> MatchedDeltas = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> missmatchedFilehashes = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> TrimmedFileHashes = new Dictionary<string, string>();
         #endregion
 
         #region Constructors
@@ -66,15 +65,6 @@ namespace UpdateServer
             ClientFolder = folder;
             ClientDeltaZip = deltaZip;
             ClearClientFolderIfNotEmpty();
-            try
-            {
-                // Set the current thread name for easier debugging; ignore failures silently.
-                Thread.CurrentThread.Name = Guid.ToString();
-            }
-            catch
-            {
-                // Do not throw if thread name cannot be set.
-            }
         }
         #endregion
 
@@ -111,19 +101,32 @@ namespace UpdateServer
             }
             foreach (var kvp in localCopy)
             {
-                if (UpdateServerEntity.DeltaFileStorage.TryGetValue(kvp.Value, out var deltaInfo))
+                bool matched = false;
+                if (UpdateServerEntity.DeltaFileStorage.TryGetValue(kvp.Value, out var deltaInfo) && deltaInfo.Count > 0)
                 {
                     var key = deltaInfo.Keys.First();
                     var value = deltaInfo.Values.First();
-                    lock (_matchedDeltasLock)
+                    if (File.Exists(Path.Combine(UpdateServerEntity.DeltaStorage, key)))
                     {
-                        if (!MatchedDeltas.ContainsKey(key))
+                        lock (_matchedDeltasLock)
                         {
-                            MatchedDeltas.Add(key, value);
+                            if (!MatchedDeltas.ContainsKey(key))
+                            {
+                                MatchedDeltas.Add(key, value);
+                            }
                         }
+                        matched = true;
+                    }
+                    else
+                    {
+                        // The stored delta was purged from disk (e.g. by the size cleanup)
+                        // but the index still points at it. Drop the stale entry and fall
+                        // through so the delta gets regenerated instead of silently skipped.
+                        UpdateServerEntity.DeltaFileStorage.TryRemove(kvp.Value, out _);
                     }
                 }
-                else
+
+                if (!matched)
                 {
                     lock (_trimmedFileHashesLock)
                     {

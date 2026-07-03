@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -138,6 +137,13 @@ namespace UpdateServer
     {
         private static HttpListener httpListener;
 
+        // HttpListener requests are handled concurrently; these serialize access to
+        // the two files the API writes.
+        private static readonly object ApiLogLock = new object();
+        private static readonly object FeedbackFileLock = new object();
+        private const long MaxRequestBodyBytes = 1024 * 1024;
+        private const int MaxReplyLength = 10000;
+
         #region Entry Point
         [STAThread]
         private static void Main(string[] args)
@@ -152,7 +158,7 @@ namespace UpdateServer
             // Ensure Sentry events are flushed on exit
             using (SentrySdk.Init(ConfigureSentry))
             {
-                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+               
                 SentrySdk.AddBreadcrumb("Application started", "app.start");
 
                 _ = new Heart(isNewUpdate);
@@ -239,11 +245,21 @@ namespace UpdateServer
                 try
                 {
                     var context = await httpListener.GetContextAsync();
-                    Task.Run(() => ProcessRequest(context));
+                    _ = Task.Run(() => ProcessRequest(context));
                 }
                 catch (HttpListenerException)
                 {
                     // Expected when stopping the listener
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Expected when the listener is closed while awaiting a context
+                    break;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Listener stopped between the IsListening check and GetContextAsync
                     break;
                 }
                 catch (Exception ex)
@@ -268,14 +284,22 @@ namespace UpdateServer
                 Console.WriteLine($"[API DEBUG] {DateTime.Now:HH:mm:ss} {request.HttpMethod} {request.Url}");
                 if (request.HasEntityBody)
                 {
+                    if (request.ContentLength64 > MaxRequestBodyBytes)
+                    {
+                        Console.ResetColor();
+                        response.StatusCode = 413;
+                        WriteResponse(response, "Payload Too Large");
+                        return;
+                    }
                     using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
                     {
-                         body = await reader.ReadToEndAsync();
+                        body = await reader.ReadToEndAsync();
                         Console.WriteLine($"Body: {body}");
+                    }
+                    lock (ApiLogLock)
+                    {
                         File.AppendAllText("apilog.log", body + "\n \n");
                     }
-                    if (request.InputStream.CanSeek)
-                        request.InputStream.Position = 0;
                 }
                 Console.ResetColor();
                 response.Headers.Add("Access-Control-Allow-Origin", "*");
@@ -302,7 +326,7 @@ namespace UpdateServer
                 {
                     var feedbackId = path.Substring("/api/feedback/".Length);
                     feedbackId = feedbackId.Substring(0, feedbackId.Length - "/reply".Length);
-                    await HandleFeedbackReplyGet(context, feedbackId);
+                    HandleFeedbackReplyGet(context, feedbackId);
                 }
                 else
                 {
@@ -313,8 +337,15 @@ namespace UpdateServer
             catch (Exception ex)
             {
                 SentrySdk.CaptureException(ex);
-                context.Response.StatusCode = 500;
-                WriteResponse(context.Response, "Internal Server Error");
+                try
+                {
+                    context.Response.StatusCode = 500;
+                    WriteResponse(context.Response, "Internal Server Error");
+                }
+                catch
+                {
+                    // Response already closed or client went away.
+                }
 #if DEBUG
                 throw;
 #endif
@@ -356,6 +387,13 @@ namespace UpdateServer
                     WriteResponse(context.Response, "Missing userID or reply");
                     return;
                 }
+                if (welcome.Fields.Reply.Length > MaxReplyLength)
+                {
+                    Console.WriteLine("Reply too long in payload");
+                    context.Response.StatusCode = 400;
+                    WriteResponse(context.Response, "Reply too long");
+                    return;
+                }
                 Console.WriteLine($"Saving reply for userID {welcome.Fields.UserId}: {welcome.Fields.Reply}");
                 SaveReply(welcome.Fields.UserId.ToString(), welcome.Fields.Reply);
                 WriteJsonResponse(context.Response, new { message = "Antwort gespeichert!", status = "success" });
@@ -372,35 +410,40 @@ namespace UpdateServer
             }
         }
 
-        private static async Task HandleFeedbackReplyGet(HttpListenerContext context, string feedbackId)
+        private static void HandleFeedbackReplyGet(HttpListenerContext context, string feedbackId)
         {
-            var replies = LoadReplies();
-            var reply = replies.FirstOrDefault(r => r.FeedbackId == feedbackId);
+            if (!Guid.TryParse(feedbackId, out _))
+            {
+                context.Response.StatusCode = 400;
+                WriteResponse(context.Response, "Invalid feedback id");
+                return;
+            }
+
+            FeedbackReply reply;
+            // Read-modify-write of feedback.json must be atomic so two concurrent
+            // GETs cannot both deliver the same reply (or corrupt the file).
+            lock (FeedbackFileLock)
+            {
+                var replies = LoadReplies();
+                reply = replies.FirstOrDefault(r => r.FeedbackId == feedbackId);
+                if (reply == null || reply.Delivered)
+                {
+                    reply = null;
+                }
+                else
+                {
+                    reply.Delivered = true;
+                    SaveReplies(replies);
+                }
+            }
+
             if (reply == null)
             {
                 context.Response.StatusCode = 404;
                 WriteResponse(context.Response, "Not Found");
                 return;
             }
-            if (!reply.Delivered)
-            {
-                reply.Delivered = true;
-                SaveReplies(replies);
-            }
-            else
-            {
-                WriteResponse(context.Response, "Not Found");
-                return;
-            }
             WriteJsonResponse(context.Response, reply);
-        }
-        // Helper methods
-        private static async Task<string> ReadRequestBody(HttpListenerRequest request)
-        {
-            using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
-            {
-                return await reader.ReadToEndAsync();
-            }
         }
 
         private static void WriteResponse(HttpListenerResponse response, string content)
@@ -435,7 +478,8 @@ namespace UpdateServer
             
             options.AddDiagnosticSourceIntegration();
             options.DiagnosticLevel = sentryConfig.Debug ? SentryLevel.Debug : SentryLevel.Error;
-           
+            // Attach exception/environment/memory details to every outgoing event.
+            options.SetBeforeSend(EnrichSentryEvent);
         }
 
         private static SentryEvent EnrichSentryEvent(SentryEvent @event)
@@ -541,18 +585,21 @@ namespace UpdateServer
 
         private static void SaveReply(string id, string reply)
         {
-            var replies = LoadReplies();
-            var existing = replies.FirstOrDefault(r => r.FeedbackId == id);
-            if (existing != null) replies.Remove(existing);
-
-            replies.Add(new FeedbackReply
+            lock (FeedbackFileLock)
             {
-                FeedbackId = id,
-                Reply = reply,
-                Timestamp = DateTime.UtcNow
-            });
+                var replies = LoadReplies();
+                var existing = replies.FirstOrDefault(r => r.FeedbackId == id);
+                if (existing != null) replies.Remove(existing);
 
-            SaveReplies(replies);
+                replies.Add(new FeedbackReply
+                {
+                    FeedbackId = id,
+                    Reply = reply,
+                    Timestamp = DateTime.UtcNow
+                });
+
+                SaveReplies(replies);
+            }
         }
 
         private static List<FeedbackReply> LoadReplies()
@@ -561,8 +608,17 @@ namespace UpdateServer
             if (!File.Exists(dataFile))
                 return new List<FeedbackReply>();
 
-            var json = File.ReadAllText(dataFile);
-            return JsonSerializer.Deserialize<List<FeedbackReply>>(json) ?? new List<FeedbackReply>();
+            try
+            {
+                var json = File.ReadAllText(dataFile);
+                return JsonSerializer.Deserialize<List<FeedbackReply>>(json) ?? new List<FeedbackReply>();
+            }
+            catch (Exception ex)
+            {
+                // A corrupt store must not brick the whole feedback API.
+                SentrySdk.CaptureException(ex);
+                return new List<FeedbackReply>();
+            }
         }
 
         private static void SaveReplies(List<FeedbackReply> replies)
